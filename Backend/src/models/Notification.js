@@ -5,7 +5,7 @@ const notificationSchema = new mongoose.Schema(
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: true,
+      required: [true, 'User reference is required'],
     },
     type: {
       type: String,
@@ -14,32 +14,36 @@ const notificationSchema = new mongoose.Schema(
         'booking_cancelled',
         'booking_reminder',
         'booking_completed',
+        'booking_rescheduled',
         'payment_success',
         'payment_failed',
+        'payment_refunded',
         'subscription_expiring',
         'subscription_expired',
         'subscription_renewed',
         'review_received',
+        'review_responded',
         'interviewer_approved',
         'interviewer_rejected',
         'withdrawal_processed',
         'system_announcement',
         'general',
       ],
-      required: true,
+      required: [true, 'Notification type is required'],
     },
     title: {
       type: String,
-      required: true,
+      required: [true, 'Title is required'],
       trim: true,
       maxlength: [100, 'Title cannot exceed 100 characters'],
     },
     message: {
       type: String,
-      required: true,
+      required: [true, 'Message is required'],
       trim: true,
       maxlength: [500, 'Message cannot exceed 500 characters'],
     },
+    // Arbitrary payload attached to the notification (e.g. bookingId, paymentId)
     data: {
       type: mongoose.Schema.Types.Mixed,
     },
@@ -53,13 +57,34 @@ const notificationSchema = new mongoose.Schema(
       enum: ['low', 'medium', 'high', 'urgent'],
       default: 'medium',
     },
-    actionUrl: {
-      type: String,
+    // Deep-link for the front-end
+    actionUrl: { type: String, trim: true },
+    actionText: { type: String, trim: true, maxlength: 60 },
+    // Delivery channel tracking
+    channels: {
+      inApp: {
+        sent: { type: Boolean, default: true },
+        sentAt: { type: Date, default: Date.now },
+      },
+      email: {
+        sent: { type: Boolean, default: false },
+        sentAt: Date,
+        messageId: { type: String, select: false }, // SMTP message ID
+      },
+      push: {
+        sent: { type: Boolean, default: false },
+        sentAt: Date,
+      },
+      sms: {
+        sent: { type: Boolean, default: false },
+        sentAt: Date,
+      },
     },
-    actionText: {
-      type: String,
+    // TTL: notifications expire automatically (MongoDB TTL index on this field)
+    expiresAt: {
+      type: Date,
+      default: () => new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), // 90 days default
     },
-    expiresAt: Date,
   },
   {
     timestamps: true,
@@ -68,19 +93,22 @@ const notificationSchema = new mongoose.Schema(
   }
 );
 
-// Indexes
-notificationSchema.index({ user: 1, createdAt: -1 });
-notificationSchema.index({ user: 1, isRead: 1 });
-notificationSchema.index({ type: 1 });
-notificationSchema.index({ expiresAt: 1 });
+// ─── Indexes ──────────────────────────────────────────────────────────────────
+notificationSchema.index({ user: 1, createdAt: -1 });            // notification feed
+notificationSchema.index({ user: 1, isRead: 1 });                // unread count badge
+notificationSchema.index({ user: 1, type: 1, isRead: 1 });       // filter by type
+notificationSchema.index({ user: 1, priority: 1, isRead: 1 });   // priority inbox
+notificationSchema.index({ type: 1 });                           // admin broadcasts
+// TTL index: MongoDB automatically deletes expired documents
+notificationSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0, name: 'notification_ttl' });
 
-// Virtual for is expired
+// ─── Virtuals ─────────────────────────────────────────────────────────────────
 notificationSchema.virtual('isExpired').get(function () {
   if (!this.expiresAt) return false;
   return new Date() > this.expiresAt;
 });
 
-// Mark as read
+// ─── Instance Methods ─────────────────────────────────────────────────────────
 notificationSchema.methods.markAsRead = function () {
   if (!this.isRead) {
     this.isRead = true;
@@ -90,43 +118,35 @@ notificationSchema.methods.markAsRead = function () {
   return Promise.resolve(this);
 };
 
-// Mark as unread
 notificationSchema.methods.markAsUnread = function () {
   this.isRead = false;
   this.readAt = null;
   return this.save();
 };
 
-// Static method to create notification
+// ─── Static Methods ───────────────────────────────────────────────────────────
 notificationSchema.statics.createNotification = async function (data) {
-  return await this.create(data);
+  return this.create(data);
 };
 
-// Static method to mark all as read for a user
 notificationSchema.statics.markAllAsRead = async function (userId) {
-  return await this.updateMany(
+  return this.updateMany(
     { user: userId, isRead: false },
     { $set: { isRead: true, readAt: new Date() } }
   );
 };
 
-// Static method to delete old notifications
-notificationSchema.statics.deleteOldNotifications = async function (days = 30) {
+notificationSchema.statics.getUnreadCount = async function (userId) {
+  return this.countDocuments({ user: userId, isRead: false });
+};
+
+// Manual cleanup (TTL index handles most cases automatically)
+notificationSchema.statics.deleteOldNotifications = async function (days = 90) {
   const cutoffDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-  return await this.deleteMany({
-    createdAt: { $lt: cutoffDate },
-    isRead: true,
-  });
+  return this.deleteMany({ createdAt: { $lt: cutoffDate }, isRead: true });
 };
 
-// Static method to delete expired notifications
-notificationSchema.statics.deleteExpiredNotifications = async function () {
-  return await this.deleteMany({
-    expiresAt: { $lt: new Date() },
-  });
-};
-
-// Transform output
+// ─── Output Sanitisation ──────────────────────────────────────────────────────
 notificationSchema.methods.toJSON = function () {
   const notification = this.toObject();
   delete notification.__v;
