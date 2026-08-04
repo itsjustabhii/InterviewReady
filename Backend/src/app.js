@@ -12,6 +12,7 @@ const { apiLimiter } = require('./middleware/rateLimiter');
 
 // Import routes
 const authRoutes = require('./routes/authRoutes');
+const { bookingRouter, availabilityRouter } = require('./routes/bookingRoutes');
 
 // Create Express app
 const app = express();
@@ -71,6 +72,8 @@ app.get('/health', (req, res) => {
 
 // API routes
 app.use(`/api/${config.apiVersion}/auth`, authRoutes);
+app.use(`/api/${config.apiVersion}/bookings`, bookingRouter);
+app.use(`/api/${config.apiVersion}/availability`, availabilityRouter);
 
 // Welcome route
 app.get('/', (req, res) => {

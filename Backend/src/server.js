@@ -5,6 +5,7 @@ const database = require('./config/database');
 const redisClient = require('./config/redis');
 const socketService = require('./services/socketService');
 const logger = require('./utils/logger');
+const { cleanupJob } = require('./services/bookingCleanupJob');
 
 // Create HTTP server
 const server = http.createServer(app);
@@ -28,6 +29,10 @@ const startServer = async () => {
     // Connect to Redis
     redisClient.connect();
     logger.info('Redis connection established');
+
+    // Start booking cleanup cron job
+    cleanupJob.start();
+    logger.info('Booking cleanup job started (every 5 minutes)');
 
     // Start server
     server.listen(config.port, () => {
@@ -57,6 +62,9 @@ process.on('SIGTERM', async () => {
     logger.info('HTTP server closed');
     
     try {
+      cleanupJob.stop();
+      logger.info('Cleanup job stopped');
+
       await database.disconnect();
       logger.info('MongoDB connection closed');
       

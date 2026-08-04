@@ -138,6 +138,13 @@ logger.logPayment = (action, details = {}) => {
   });
 };
 
+logger.logBooking = (action, details = {}) => {
+  logger.info('Booking event', {
+    action,
+    ...details,
+  });
+};
+
 logger.logSocket = (event, socketId, details = {}) => {
   logger.debug('Socket.IO event', {
     event,
