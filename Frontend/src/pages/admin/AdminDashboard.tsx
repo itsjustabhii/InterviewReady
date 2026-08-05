@@ -2,33 +2,351 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   Users, Calendar, DollarSign, TrendingUp,
-  Search, MoreVertical, ChevronUp,
+  Search, CheckCircle, XCircle, Clock,
+  ChevronUp, ChevronDown,
 } from 'lucide-react';
-import { mockInterviewers, mockBookings } from '../../data/mockData';
 import GlassCard from '../../components/ui/GlassCard';
 import Badge from '../../components/ui/Badge';
+import { Spinner } from '../../components/ui/Loader';
+import {
+  useAdminStats,
+  useAdminUsers,
+  useAdminInterviewers,
+  useAdminBookings,
+  useApproveInterviewer,
+  useRejectInterviewer,
+  useAdminUpdateUser,
+} from '../../hooks/useApi';
+import type { Interviewer, User, Booking, AdminStats } from '../../types';
+import { formatDate } from '../../lib/dateUtils';
+import toast from 'react-hot-toast';
 import clsx from 'clsx';
 
-const kpis = [
-  { label: 'Total Users', value: '12,480', change: '+18%', icon: <Users size={22} />, up: true },
-  { label: 'Sessions This Month', value: '3,241', change: '+24%', icon: <Calendar size={22} />, up: true },
-  { label: 'Monthly Revenue', value: '$94,200', change: '+12%', icon: <DollarSign size={22} />, up: true },
-  { label: 'Avg. Rating', value: '4.85', change: '+0.05', icon: <TrendingUp size={22} />, up: true },
-];
+const ADMIN_TABS = ['Overview', 'Users', 'Interviewers', 'Bookings'] as const;
+type Tab = typeof ADMIN_TABS[number];
 
-const RECENT_USERS = [
-  { id: '1', name: 'Alex Rodriguez', email: 'alex.r@gmail.com', plan: 'pro', joined: '2025-07-22', status: 'active' },
-  { id: '2', name: 'Priya Mehta', email: 'priya@startup.io', plan: 'enterprise', joined: '2025-07-21', status: 'active' },
-  { id: '3', name: 'Jason Liu', email: 'jasonliu@outlook.com', plan: 'free', joined: '2025-07-20', status: 'inactive' },
-  { id: '4', name: 'Maria Santos', email: 'maria.s@company.com', plan: 'pro', joined: '2025-07-19', status: 'active' },
-  { id: '5', name: 'Ben Walker', email: 'ben.w@gmail.com', plan: 'free', joined: '2025-07-18', status: 'active' },
-];
+// ─── KPI Card ─────────────────────────────────────────────────────────────────
+function KpiCard({ label, value, change, icon, up }: {
+  label: string; value: string | number; change?: string; icon: React.ReactNode; up?: boolean;
+}) {
+  return (
+    <GlassCard className="flex items-start gap-4 p-5">
+      <div className="p-3 rounded-2xl bg-[var(--accent)]/10 text-[var(--accent)]">
+        {icon}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-xs text-[var(--text-secondary)] mb-1">{label}</p>
+        <p className="text-2xl font-bold text-[var(--text-primary)]">{value}</p>
+        {change && (
+          <p className={`text-xs mt-1 flex items-center gap-0.5 ${up ? 'text-emerald-500' : 'text-red-500'}`}>
+            {up ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+            {change} vs last month
+          </p>
+        )}
+      </div>
+    </GlassCard>
+  );
+}
 
-const ADMIN_TABS = ['Overview', 'Users', 'Interviewers', 'Bookings'];
+// ─── Revenue Chart (SVG bar chart) ───────────────────────────────────────────
+function RevenueChart({ data }: { data: AdminStats['monthlyRevenue'] }) {
+  const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const max = Math.max(...data.map((d) => d.revenue), 1);
+  const chartH = 80;
 
-export default function AdminDashboard() {
-  const [tab, setTab] = useState('Overview');
+  return (
+    <div>
+      <div className="flex items-end gap-2 h-24">
+        {data.map((d, i) => {
+          const h = Math.max(4, (d.revenue / max) * chartH);
+          return (
+            <div key={i} className="flex-1 flex flex-col items-center gap-1 group relative">
+              <div
+                className="w-full rounded-t-lg bg-[var(--accent)]/70 hover:bg-[var(--accent)] transition-colors cursor-default"
+                style={{ height: h }}
+              />
+              <span className="text-[9px] text-[var(--text-secondary)] truncate w-full text-center">
+                {MONTHS[d._id.month - 1]}
+              </span>
+              {/* Tooltip */}
+              <div className="absolute bottom-full mb-1 hidden group-hover:block bg-[var(--bg-secondary)] border border-[var(--border)] rounded-lg px-2 py-1 text-xs text-[var(--text-primary)] whitespace-nowrap z-10">
+                ₹{d.revenue.toLocaleString()} · {d.count} txns
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Users Tab ────────────────────────────────────────────────────────────────
+function UsersTab() {
   const [search, setSearch] = useState('');
+  const [dSearch, setDSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const { data, isLoading } = useAdminUsers({ page, search: dSearch || undefined });
+  const updateUser = useAdminUpdateUser();
+  const users = data?.data ?? [];
+
+  const toggleActive = (user: User) => {
+    updateUser.mutate(
+      { id: user._id, updates: { isActive: !user.isActive } },
+      {
+        onSuccess: () => toast.success(`User ${user.isActive ? 'deactivated' : 'activated'}`),
+        onError: () => toast.error('Failed to update user'),
+      }
+    );
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-secondary)]" />
+        <input
+          value={search}
+          onChange={(e) => { setSearch(e.target.value); setTimeout(() => setDSearch(e.target.value), 400); setPage(1); }}
+          placeholder="Search users…"
+          className="input-field pl-10 w-full sm:w-72"
+        />
+      </div>
+
+      {isLoading ? <div className="flex justify-center py-12"><Spinner /></div> : (
+        <div className="glass-card overflow-x-auto p-0">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-[var(--border)]">
+                {['Name', 'Email', 'Role', 'Status', 'Joined', 'Actions'].map((h) => (
+                  <th key={h} className="px-4 py-3 text-left text-xs font-medium text-[var(--text-secondary)]">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((user) => (
+                <tr key={user._id} className="border-b border-[var(--border)] hover:bg-[var(--glass)] transition-colors">
+                  <td className="px-4 py-3 font-medium">{user.firstName} {user.lastName}</td>
+                  <td className="px-4 py-3 text-[var(--text-secondary)] truncate max-w-[180px]">{user.email}</td>
+                  <td className="px-4 py-3">
+                    <Badge label={user.role} />
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                      user.isActive
+                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                        : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                    }`}>
+                      {user.isActive ? 'Active' : 'Inactive'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-[var(--text-secondary)]">{formatDate(user.createdAt)}</td>
+                  <td className="px-4 py-3">
+                    <button
+                      onClick={() => toggleActive(user)}
+                      className="text-xs text-[var(--accent)] hover:opacity-80 font-medium"
+                    >
+                      {user.isActive ? 'Deactivate' : 'Activate'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {users.length === 0 && <p className="text-center py-8 text-[var(--text-secondary)] text-sm">No users found</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Interviewers Tab ─────────────────────────────────────────────────────────
+function InterviewersTab() {
+  const [statusFilter, setStatusFilter] = useState('');
+  const { data, isLoading } = useAdminInterviewers({ status: statusFilter || undefined });
+  const approve = useApproveInterviewer();
+  const reject = useRejectInterviewer();
+  const interviewers = data?.data ?? [];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-2">
+        {['', 'pending', 'active', 'rejected', 'suspended'].map((s) => (
+          <button
+            key={s}
+            onClick={() => setStatusFilter(s)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              statusFilter === s
+                ? 'bg-[var(--accent)] text-white'
+                : 'border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+            }`}
+          >
+            {s === '' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
+          </button>
+        ))}
+      </div>
+
+      {isLoading ? <div className="flex justify-center py-12"><Spinner /></div> : (
+        <div className="glass-card overflow-x-auto p-0">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-[var(--border)]">
+                {['Name', 'Company', 'Expertise', 'Rating', 'Status', 'Actions'].map((h) => (
+                  <th key={h} className="px-4 py-3 text-left text-xs font-medium text-[var(--text-secondary)]">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {interviewers.map((iv: Interviewer) => {
+                const user = typeof iv.user === 'object' ? iv.user : null;
+                return (
+                  <tr key={iv._id} className="border-b border-[var(--border)] hover:bg-[var(--glass)] transition-colors">
+                    <td className="px-4 py-3 font-medium">
+                      {user ? `${user.firstName} ${user.lastName}` : '—'}
+                    </td>
+                    <td className="px-4 py-3 text-[var(--text-secondary)]">{iv.company}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-1">
+                        {iv.expertise.slice(0, 2).map((e) => (
+                          <Badge key={e} label={e} small />
+                        ))}
+                        {iv.expertise.length > 2 && (
+                          <span className="text-xs text-[var(--text-secondary)]">+{iv.expertise.length - 2}</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-amber-500 font-medium">
+                      ★ {iv.rating.average.toFixed(1)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                        iv.status === 'active' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                        : iv.status === 'pending' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                        : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                      }`}>
+                        {iv.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      {iv.status === 'pending' && (
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => approve.mutate(iv._id, {
+                              onSuccess: () => toast.success('Interviewer approved'),
+                              onError: () => toast.error('Failed'),
+                            })}
+                            className="p-1.5 rounded-lg text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
+                            title="Approve"
+                          >
+                            <CheckCircle size={16} />
+                          </button>
+                          <button
+                            onClick={() => reject.mutate({ id: iv._id }, {
+                              onSuccess: () => toast.success('Interviewer rejected'),
+                              onError: () => toast.error('Failed'),
+                            })}
+                            className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+                            title="Reject"
+                          >
+                            <XCircle size={16} />
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {interviewers.length === 0 && (
+            <p className="text-center py-8 text-[var(--text-secondary)] text-sm">No interviewers found</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Bookings Tab ─────────────────────────────────────────────────────────────
+function BookingsTab() {
+  const [statusFilter, setStatusFilter] = useState('');
+  const { data, isLoading } = useAdminBookings({ status: statusFilter || undefined });
+  const bookings = data?.data ?? [];
+
+  const statusColors: Record<string, string> = {
+    confirmed: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+    pending: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
+    completed: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+    cancelled: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-2">
+        {['', 'confirmed', 'pending', 'completed', 'cancelled'].map((s) => (
+          <button
+            key={s}
+            onClick={() => setStatusFilter(s)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+              statusFilter === s
+                ? 'bg-[var(--accent)] text-white'
+                : 'border border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+            }`}
+          >
+            {s === '' ? 'All' : s.charAt(0).toUpperCase() + s.slice(1)}
+          </button>
+        ))}
+      </div>
+
+      {isLoading ? <div className="flex justify-center py-12"><Spinner /></div> : (
+        <div className="glass-card overflow-x-auto p-0">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-[var(--border)]">
+                {['User', 'Interviewer', 'Date', 'Type', 'Status', 'Amount'].map((h) => (
+                  <th key={h} className="px-4 py-3 text-left text-xs font-medium text-[var(--text-secondary)]">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {bookings.map((booking: Booking) => {
+                const user = typeof booking.user === 'object' ? booking.user : null;
+                const iv = typeof booking.interviewer === 'object' ? booking.interviewer : null;
+                const ivUser = iv && typeof iv.user === 'object' ? iv.user : null;
+                return (
+                  <tr key={booking._id} className="border-b border-[var(--border)] hover:bg-[var(--glass)] transition-colors">
+                    <td className="px-4 py-3 font-medium">
+                      {user ? `${user.firstName} ${user.lastName}` : '—'}
+                    </td>
+                    <td className="px-4 py-3 text-[var(--text-secondary)]">
+                      {ivUser ? `${ivUser.firstName} ${ivUser.lastName}` : booking.interviewerName ?? '—'}
+                    </td>
+                    <td className="px-4 py-3 text-[var(--text-secondary)]">
+                      {formatDate(booking.scheduledDate ?? booking.date)}
+                    </td>
+                    <td className="px-4 py-3"><Badge label={booking.type} small /></td>
+                    <td className="px-4 py-3">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[booking.status] ?? ''}`}>
+                        {booking.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 font-medium">
+                      ₹{booking.price?.toLocaleString() ?? '—'}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {bookings.length === 0 && <p className="text-center py-8 text-[var(--text-secondary)] text-sm">No bookings found</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Main Dashboard ───────────────────────────────────────────────────────────
+export default function AdminDashboard() {
+  const [tab, setTab] = useState<Tab>('Overview');
+  const { data: stats, isLoading: statsLoading } = useAdminStats();
 
   return (
     <main className="pt-24 pb-20">
@@ -59,209 +377,82 @@ export default function AdminDashboard() {
             ))}
           </div>
 
-          {/* Overview */}
+          {/* Overview Tab */}
           {tab === 'Overview' && (
             <div className="space-y-8">
-              {/* KPIs */}
-              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {kpis.map((k, i) => (
-                  <motion.div
-                    key={k.label}
-                    initial={{ opacity: 0, y: 16 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.07 }}
-                  >
+              {statsLoading ? (
+                <div className="flex justify-center py-12"><Spinner /></div>
+              ) : stats ? (
+                <>
+                  {/* KPIs */}
+                  <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
+                    <KpiCard
+                      label="Total Users"
+                      value={stats.users.total.toLocaleString()}
+                      change={`+${stats.users.newThisMonth} new`}
+                      icon={<Users size={22} />}
+                      up
+                    />
+                    <KpiCard
+                      label="Bookings This Month"
+                      value={stats.bookings.thisMonth.toLocaleString()}
+                      icon={<Calendar size={22} />}
+                    />
+                    <KpiCard
+                      label="Monthly Revenue"
+                      value={`₹${stats.revenue.thisMonth.toLocaleString()}`}
+                      icon={<DollarSign size={22} />}
+                    />
+                    <KpiCard
+                      label="Active Subscriptions"
+                      value={stats.activeSubscriptions.toLocaleString()}
+                      icon={<TrendingUp size={22} />}
+                    />
+                  </div>
+
+                  {/* Revenue Chart */}
+                  {stats.monthlyRevenue.length > 0 && (
                     <GlassCard>
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="w-11 h-11 rounded-2xl bg-[var(--accent)]/10 text-[var(--accent)] flex items-center justify-center">
-                          {k.icon}
-                        </div>
-                        <span className={clsx(
-                          'flex items-center gap-0.5 text-xs font-medium px-2 py-1 rounded-full',
-                          k.up ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-red-100 text-red-600'
-                        )}>
-                          <ChevronUp size={12} className={clsx(!k.up && 'rotate-180')} />
-                          {k.change}
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="font-semibold text-[var(--text-primary)]">Revenue (Last 6 Months)</h3>
+                        <span className="text-xs text-[var(--text-secondary)]">
+                          Total: ₹{stats.revenue.total.toLocaleString()}
                         </span>
                       </div>
-                      <p className="text-2xl font-bold">{k.value}</p>
-                      <p className="text-sm text-[var(--text-secondary)] mt-1">{k.label}</p>
+                      <RevenueChart data={stats.monthlyRevenue} />
                     </GlassCard>
-                  </motion.div>
-                ))}
-              </div>
+                  )}
 
-              {/* Revenue chart placeholder */}
-              <GlassCard>
-                <h3 className="font-semibold mb-6">Revenue over time</h3>
-                <div className="flex items-end gap-2 h-40">
-                  {[42, 68, 55, 90, 78, 95, 115, 102, 130, 118, 140, 160].map((h, i) => (
-                    <motion.div
-                      key={i}
-                      initial={{ scaleY: 0, originY: 1 }}
-                      animate={{ scaleY: 1 }}
-                      transition={{ delay: i * 0.04 }}
-                      style={{ height: `${(h / 160) * 100}%` }}
-                      className="flex-1 rounded-t-lg bg-[var(--accent)]/20 hover:bg-[var(--accent)]/40 transition-colors cursor-pointer"
-                    />
-                  ))}
-                </div>
-                <div className="flex justify-between mt-2 text-xs text-[var(--text-secondary)]">
-                  {['Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'].map((m) => (
-                    <span key={m}>{m}</span>
-                  ))}
-                </div>
-              </GlassCard>
-
-              {/* Recent bookings */}
-              <GlassCard>
-                <h3 className="font-semibold mb-4">Recent bookings</h3>
-                <div className="space-y-2">
-                  {mockBookings.map((b) => (
-                    <div key={b.id} className="flex items-center justify-between py-3 border-b border-[var(--border)] last:border-0">
-                      <div>
-                        <p className="text-sm font-medium">{b.interviewerName}</p>
-                        <p className="text-xs text-[var(--text-secondary)]">{b.type} · {b.date} {b.slot}</p>
-                      </div>
-                      <Badge label={b.status} />
-                    </div>
-                  ))}
-                </div>
-              </GlassCard>
-            </div>
-          )}
-
-          {/* Users tab */}
-          {tab === 'Users' && (
-            <div>
-              <div className="flex items-center gap-3 mb-6">
-                <div className="relative flex-1 max-w-xs">
-                  <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]" />
-                  <input
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search users..."
-                    className="input-field pl-9 text-sm"
-                  />
-                </div>
-              </div>
-              <GlassCard padding="none">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-[var(--border)] text-[var(--text-secondary)] text-xs uppercase tracking-wide">
-                        <th className="text-left px-5 py-3 font-medium">User</th>
-                        <th className="text-left px-5 py-3 font-medium">Plan</th>
-                        <th className="text-left px-5 py-3 font-medium">Joined</th>
-                        <th className="text-left px-5 py-3 font-medium">Status</th>
-                        <th className="px-5 py-3" />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {RECENT_USERS.filter((u) =>
-                        !search || u.name.toLowerCase().includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase())
-                      ).map((u) => (
-                        <tr key={u.id} className="border-b border-[var(--border)] last:border-0 hover:bg-[var(--bg-secondary)] transition-colors">
-                          <td className="px-5 py-4">
-                            <div>
-                              <p className="font-medium">{u.name}</p>
-                              <p className="text-xs text-[var(--text-secondary)]">{u.email}</p>
-                            </div>
-                          </td>
-                          <td className="px-5 py-4"><Badge label={u.plan} /></td>
-                          <td className="px-5 py-4 text-[var(--text-secondary)]">{u.joined}</td>
-                          <td className="px-5 py-4">
-                            <span className={clsx(
-                              'px-2.5 py-1 rounded-full text-xs font-medium',
-                              u.status === 'active'
-                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
-                                : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)]'
-                            )}>
-                              {u.status}
-                            </span>
-                          </td>
-                          <td className="px-5 py-4">
-                            <button className="btn-ghost w-8 h-8 p-0 rounded-full">
-                              <MoreVertical size={15} />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </GlassCard>
-            </div>
-          )}
-
-          {/* Interviewers tab */}
-          {tab === 'Interviewers' && (
-            <GlassCard padding="none">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-[var(--border)] text-[var(--text-secondary)] text-xs uppercase tracking-wide">
-                      <th className="text-left px-5 py-3 font-medium">Interviewer</th>
-                      <th className="text-left px-5 py-3 font-medium">Company</th>
-                      <th className="text-left px-5 py-3 font-medium">Sessions</th>
-                      <th className="text-left px-5 py-3 font-medium">Rating</th>
-                      <th className="text-left px-5 py-3 font-medium">Price</th>
-                      <th className="text-left px-5 py-3 font-medium">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {mockInterviewers.map((iv) => (
-                      <tr key={iv.id} className="border-b border-[var(--border)] last:border-0 hover:bg-[var(--bg-secondary)] transition-colors">
-                        <td className="px-5 py-4">
-                          <div className="flex items-center gap-3">
-                            <img src={iv.avatar} alt={iv.name} className="w-8 h-8 rounded-full" />
-                            <div>
-                              <p className="font-medium">{iv.name}</p>
-                              <p className="text-xs text-[var(--text-secondary)]">{iv.title}</p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-5 py-4 text-[var(--text-secondary)]">{iv.company}</td>
-                        <td className="px-5 py-4">{iv.sessions}</td>
-                        <td className="px-5 py-4">{iv.rating}</td>
-                        <td className="px-5 py-4">${iv.price}</td>
-                        <td className="px-5 py-4">
-                          <span className={clsx(
-                            'px-2.5 py-1 rounded-full text-xs font-medium',
-                            iv.available
-                              ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
-                              : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)]'
-                          )}>
-                            {iv.available ? 'Active' : 'Unavailable'}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </GlassCard>
-          )}
-
-          {/* Bookings tab */}
-          {tab === 'Bookings' && (
-            <GlassCard>
-              <h3 className="font-semibold mb-5">All Bookings</h3>
-              <div className="space-y-2">
-                {mockBookings.map((b) => (
-                  <div key={b.id} className="flex items-center justify-between p-4 rounded-xl border border-[var(--border)] hover:bg-[var(--bg-secondary)] transition-colors">
-                    <div>
-                      <p className="font-medium text-sm">{b.interviewerName}</p>
-                      <p className="text-xs text-[var(--text-secondary)]">{b.type} · {b.date} · {b.slot}</p>
-                    </div>
-                    <Badge label={b.status} />
+                  {/* Quick stats row */}
+                  <div className="grid sm:grid-cols-3 gap-4">
+                    <GlassCard className="text-center p-5">
+                      <Clock className="w-6 h-6 text-amber-500 mx-auto mb-2" />
+                      <p className="text-2xl font-bold">{stats.interviewers.pending}</p>
+                      <p className="text-xs text-[var(--text-secondary)] mt-1">Pending Interviewer Applications</p>
+                    </GlassCard>
+                    <GlassCard className="text-center p-5">
+                      <Users className="w-6 h-6 text-[var(--accent)] mx-auto mb-2" />
+                      <p className="text-2xl font-bold">{stats.interviewers.total}</p>
+                      <p className="text-xs text-[var(--text-secondary)] mt-1">Active Interviewers</p>
+                    </GlassCard>
+                    <GlassCard className="text-center p-5">
+                      <TrendingUp className="w-6 h-6 text-emerald-500 mx-auto mb-2" />
+                      <p className="text-2xl font-bold">{stats.bookings.total.toLocaleString()}</p>
+                      <p className="text-xs text-[var(--text-secondary)] mt-1">Total Bookings</p>
+                    </GlassCard>
                   </div>
-                ))}
-              </div>
-            </GlassCard>
+                </>
+              ) : null}
+            </div>
           )}
+
+          {tab === 'Users' && <UsersTab />}
+          {tab === 'Interviewers' && <InterviewersTab />}
+          {tab === 'Bookings' && <BookingsTab />}
         </motion.div>
       </div>
     </main>
   );
 }
+
+// Made with Bob

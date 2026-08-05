@@ -13,6 +13,14 @@ const { apiLimiter } = require('./middleware/rateLimiter');
 // Import routes
 const authRoutes = require('./routes/authRoutes');
 const { bookingRouter, availabilityRouter } = require('./routes/bookingRoutes');
+const sessionRoutes = require('./routes/sessionRoutes');
+const interviewerRoutes = require('./routes/interviewerRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
+const reviewRoutes = require('./routes/reviewRoutes');
+const subscriptionRoutes = require('./routes/subscriptionRoutes');
+const userRoutes = require('./routes/userRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 
 // Create Express app
 const app = express();
@@ -74,6 +82,14 @@ app.get('/health', (req, res) => {
 app.use(`/api/${config.apiVersion}/auth`, authRoutes);
 app.use(`/api/${config.apiVersion}/bookings`, bookingRouter);
 app.use(`/api/${config.apiVersion}/availability`, availabilityRouter);
+app.use(`/api/${config.apiVersion}/sessions`, sessionRoutes);
+app.use(`/api/${config.apiVersion}/interviewers`, interviewerRoutes);
+app.use(`/api/${config.apiVersion}/payments`, paymentRoutes);
+app.use(`/api/${config.apiVersion}/reviews`, reviewRoutes);
+app.use(`/api/${config.apiVersion}/subscriptions`, subscriptionRoutes);
+app.use(`/api/${config.apiVersion}/users`, userRoutes);
+app.use(`/api/${config.apiVersion}/notifications`, notificationRoutes);
+app.use(`/api/${config.apiVersion}/admin`, adminRoutes);
 
 // Welcome route
 app.get('/', (req, res) => {

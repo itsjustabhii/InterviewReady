@@ -81,7 +81,9 @@ export default function InterviewerDetailsPage() {
                   <div className="flex flex-wrap gap-4 mt-4 text-sm text-[var(--text-secondary)]">
                     <span className="flex items-center gap-1.5">
                       <StarRating rating={interviewer.rating} />
-                      <strong className="text-[var(--text-primary)]">{interviewer.rating}</strong>
+                      <strong className="text-[var(--text-primary)]">
+                        {typeof interviewer.rating === 'object' ? interviewer.rating.average.toFixed(1) : interviewer.rating}
+                      </strong>
                       <span>({interviewer.reviews} reviews)</span>
                     </span>
                     <span className="flex items-center gap-1.5">

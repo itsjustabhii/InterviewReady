@@ -3,6 +3,7 @@ const { verifyAccessToken } = require('../utils/jwt');
 const User = require('../models/User');
 const logger = require('../utils/logger');
 const config = require('../config');
+const signalingService = require('./signalingService');
 
 class SocketService {
   constructor() {
@@ -22,6 +23,9 @@ class SocketService {
 
     this.setupMiddleware();
     this.setupEventHandlers();
+
+    // Mount WebRTC signaling namespace
+    signalingService.mount(this.io);
 
     logger.info('Socket.IO initialized');
   }
@@ -131,6 +135,30 @@ class SocketService {
     socket.on('ping', () => {
       socket.emit('pong');
     });
+  }
+
+  /**
+   * Emit arbitrary event to a specific user (alias used by notificationController)
+   */
+  emitToUser(userId, event, data) {
+    try {
+      if (!this.io) return;
+      this.io.to(`user:${userId}`).emit(event, data);
+    } catch (error) {
+      logger.error('Error emitting to user:', error);
+    }
+  }
+
+  /**
+   * Emit arbitrary event to a room (used by signalingService / sessionController)
+   */
+  emitToRoom(roomId, event, data) {
+    try {
+      if (!this.io) return;
+      this.io.to(`room:${roomId}`).emit(event, data);
+    } catch (error) {
+      logger.error('Error emitting to room:', error);
+    }
   }
 
   /**

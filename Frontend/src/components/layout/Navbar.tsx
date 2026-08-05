@@ -9,6 +9,7 @@ import {
   User, LayoutDashboard, Calendar, LogOut, Zap,
 } from 'lucide-react';
 import clsx from 'clsx';
+import NotificationBell from '../ui/NotificationBell';
 
 const navLinks = [
   { label: 'Interviewers', to: '/interviewers' },
@@ -82,6 +83,8 @@ export default function Navbar() {
             >
               {mode === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
             </button>
+
+            {isAuthenticated && <NotificationBell />}
 
             {isAuthenticated ? (
               <div className="relative">

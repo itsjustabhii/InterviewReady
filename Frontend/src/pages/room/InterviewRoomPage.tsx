@@ -1,253 +1,334 @@
-import { useState, useRef, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { useParams, Link } from 'react-router-dom';
+/**
+ * InterviewRoomPage
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Full real-time WebRTC video interview room.
+ *
+ * Architecture:
+ *   useSocket        — Socket.IO /webrtc connection; dispatches all events to Redux
+ *   useWebRTC        — RTCPeerConnection lifecycle; perfect-negotiation
+ *   useMediaControls — getUserMedia, mic/cam toggle, screen share, MediaRecorder
+ *   roomSlice        — all room state (participants, chat, code, recording)
+ *
+ * Layout:
+ *   ┌────────────────────────────────────────┐
+ *   │              TopBar (timer/status)      │
+ *   ├────────────────────────────┬───────────┤
+ *   │   Video grid               │ Side panel │
+ *   │   (remote + local tiles)   │ chat/code/ │
+ *   │                            │ people     │
+ *   ├────────────────────────────┴───────────┤
+ *   │              ControlBar                 │
+ *   └────────────────────────────────────────┘
+ */
+
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import {
-  Mic, MicOff, Video, VideoOff, PhoneOff, MessageSquare,
-  Users, Code, ScreenShare, Send, Settings,
-} from 'lucide-react';
+  initRoom, resetRoom, setActivePanel,
+  updateParticipantMedia,
+} from '../../store/slices/roomSlice';
+import { useSocket } from '../../hooks/useSocket';
+import { useWebRTC } from '../../hooks/useWebRTC';
+import { useMediaControls } from '../../hooks/useMediaControls';
+import VideoTile from '../../components/room/VideoTile';
+import ControlBar from '../../components/room/ControlBar';
+import ChatPanel from '../../components/room/ChatPanel';
+import CodePanel from '../../components/room/CodePanel';
+import ParticipantList from '../../components/room/ParticipantList';
+import TopBar from '../../components/room/TopBar';
+import SessionEndedOverlay from '../../components/room/SessionEndedOverlay';
+import api from '../../lib/axios';
+import toast from 'react-hot-toast';
+import { PageLoader } from '../../components/ui/Loader';
 import clsx from 'clsx';
 
-const CHAT_SEED = [
-  { id: 1, author: 'Sarah Chen', mine: false, text: "Hi! Ready to get started? We'll do a 45-min system design followed by feedback." },
-  { id: 2, author: 'You', mine: true, text: "Absolutely! I've been practising URL shortener and rate limiter designs." },
-  { id: 3, author: 'Sarah Chen', mine: false, text: "Great choice. Let's start with URL shortener. Walk me through your approach." },
-];
-
-const CODE_STARTER = `// URL Shortener - System Design Notes
-// ------------------------------------------
-
-class URLShortener {
-  // Step 1: Estimate scale
-  // - 100M writes/day → ~1200 writes/s
-  // - 10:1 read:write ratio → ~12,000 reads/s
-
-  // Step 2: Core API
-  // POST /shorten → { shortUrl }
-  // GET  /:code   → 301 redirect
-
-  // Step 3: Data model
-  // urls table: id, shortCode(6 chars), longUrl, userId, createdAt, expiresAt
-
-  // Step 4: Short code generation
-  // base62 encode a counter OR MD5 hash first 6 chars
-
-  // Step 5: Scale considerations
-  // - Separate read/write services
-  // - Cache popular URLs (Redis TTL)
-  // - CDN at edge for most popular 1%
-}
-`;
-
 export default function InterviewRoomPage() {
-  const { id } = useParams();
-  const [micOn, setMicOn] = useState(true);
-  const [camOn, setCamOn] = useState(true);
-  const [tab, setTab] = useState<'chat' | 'code'>('chat');
-  const [messages, setMessages] = useState(CHAT_SEED);
-  const [input, setInput] = useState('');
-  const [code, setCode] = useState(CODE_STARTER);
-  const [elapsed, setElapsed] = useState(0);
-  const chatBottomRef = useRef<HTMLDivElement>(null);
+  const { roomId } = useParams<{ roomId: string }>();
+  const [searchParams] = useSearchParams();
+  const bookingId = searchParams.get('bookingId') ?? '';
+  const navigate = useNavigate();
+  const dispatch = useAppDispatch();
 
+  const { user } = useAppSelector((s) => s.auth);
+  const { participants, sessionEnded, activePanel, sessionId } = useAppSelector((s) => s.room);
+
+  // ── Step 1: fetch ICE server config from backend ───────────────────────────
+  const [bootstrapped, setBootstrapped] = useState(false);
   useEffect(() => {
-    const interval = setInterval(() => setElapsed((e) => e + 1), 1000);
-    return () => clearInterval(interval);
-  }, []);
+    if (!bookingId) { setBootstrapped(true); return; }
 
+    api.get(`/sessions/room/${bookingId}`)
+      .then(({ data }) => {
+        dispatch(initRoom({
+          roomId: data.data.roomId,
+          sessionId: data.data.sessionId,
+          iceServers: data.data.iceServers,
+        }));
+        setBootstrapped(true);
+      })
+      .catch(() => {
+        // Fallback for demo/direct link — use public Google STUN
+        dispatch(initRoom({
+          roomId: roomId ?? '',
+          sessionId: '',
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+          ],
+        }));
+        setBootstrapped(true);
+      });
+
+    return () => { dispatch(resetRoom()); };
+  }, [bookingId, roomId, dispatch]);
+
+  // ── Media refs ─────────────────────────────────────────────────────────────
+  const localStreamRef = useRef<MediaStream | null>(null);
+  const localVideoRef = useRef<HTMLVideoElement>(null);
+
+  // ── Socket hook ────────────────────────────────────────────────────────────
+  const socketRef = useSocket(bootstrapped ? (roomId ?? null) : null);
+
+  // ── Identify remote peer ───────────────────────────────────────────────────
+  const remoteParticipant = Object.values(participants).find(
+    (p) => p.userId !== user?.id && p.connectionState !== 'disconnected'
+  );
+  const selfParticipant = user?.id ? participants[user.id] : null;
+
+  // Am I the "polite" peer? The user (interviewee) is always polite.
+  const isSelf = user?.role !== 'interviewer';
+
+  // ── WebRTC hook ────────────────────────────────────────────────────────────
+  const { peerRef, remoteStream } = useWebRTC(
+    socketRef,
+    localStreamRef,
+    roomId ?? null,
+    remoteParticipant?.userId ?? null,
+    isSelf,
+  );
+
+  // ── Media controls hook ────────────────────────────────────────────────────
+  const {
+    acquireMedia,
+    toggleMic,
+    toggleCam,
+    startScreenShare,
+    stopScreenShare,
+    startRecording,
+    stopRecording,
+    downloadRecording,
+    releaseMedia,
+    recordingBlob,
+  } = useMediaControls(localStreamRef, localVideoRef);
+
+  // ── Acquire media on mount ─────────────────────────────────────────────────
   useEffect(() => {
-    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    if (!bootstrapped) return;
+    acquireMedia().then((stream) => {
+      if (stream && peerRef.current) {
+        for (const track of stream.getTracks()) {
+          const senders = peerRef.current.getSenders();
+          if (!senders.find((s) => s.track?.kind === track.kind)) {
+            peerRef.current.addTrack(track, stream);
+          }
+        }
+      }
+    });
+    return () => releaseMedia();
+  }, [bootstrapped, acquireMedia, releaseMedia]);
 
-  const formatTime = (s: number) => {
-    const m = Math.floor(s / 60).toString().padStart(2, '0');
-    const sec = (s % 60).toString().padStart(2, '0');
-    return `${m}:${sec}`;
-  };
+  // ── Media toggle handlers (also broadcast state via socket) ───────────────
+  const handleToggleMic = useCallback(() => {
+    const next = toggleMic();
+    if (next !== undefined) {
+      socketRef.current?.emit('media-state', { roomId, micOn: next, camOn: undefined, isScreenSharing: undefined });
+      if (user?.id) dispatch(updateParticipantMedia({ userId: user.id, micOn: next }));
+    }
+  }, [toggleMic, socketRef, roomId, dispatch, user]);
 
-  const sendMessage = () => {
-    if (!input.trim()) return;
-    setMessages((prev) => [...prev, { id: Date.now(), author: 'You', mine: true, text: input }]);
-    setInput('');
-  };
+  const handleToggleCam = useCallback(() => {
+    const next = toggleCam();
+    if (next !== undefined) {
+      socketRef.current?.emit('media-state', { roomId, camOn: next });
+      if (user?.id) dispatch(updateParticipantMedia({ userId: user.id, camOn: next }));
+    }
+  }, [toggleCam, socketRef, roomId, dispatch, user]);
 
+  const { isScreenSharing } = useAppSelector((s) => s.room);
+
+  const handleScreenShare = useCallback(async () => {
+    if (!isScreenSharing) {
+      const track = await startScreenShare(peerRef.current);
+      if (track) {
+        socketRef.current?.emit('media-state', { roomId, isScreenSharing: true });
+        if (user?.id) dispatch(updateParticipantMedia({ userId: user.id, isScreenSharing: true }));
+      }
+    } else {
+      stopScreenShare(peerRef.current);
+      socketRef.current?.emit('media-state', { roomId, isScreenSharing: false });
+      if (user?.id) dispatch(updateParticipantMedia({ userId: user.id, isScreenSharing: false }));
+    }
+  }, [isScreenSharing, startScreenShare, stopScreenShare, peerRef, socketRef, roomId, dispatch, user]);
+
+  // ── Recording ──────────────────────────────────────────────────────────────
+  const handleStartRecord = useCallback(() => {
+    startRecording(localStreamRef.current ?? undefined);
+    socketRef.current?.emit('recording-start', { roomId });
+  }, [startRecording, socketRef, roomId, localStreamRef]);
+
+  const handleStopRecord = useCallback(() => {
+    stopRecording();
+    socketRef.current?.emit('recording-stop', { roomId });
+  }, [stopRecording, socketRef, roomId]);
+
+  // ── End call ───────────────────────────────────────────────────────────────
+  const handleEndCall = useCallback(async () => {
+    stopRecording();
+    releaseMedia();
+    socketRef.current?.emit('leave-room', { roomId });
+    socketRef.current?.disconnect();
+
+    if (sessionId) {
+      await api.post(`/sessions/${sessionId}/end`).catch(() => {});
+    }
+
+    dispatch(resetRoom());
+    navigate('/profile');
+    toast.success('Session ended. Check your dashboard for the recording.');
+  }, [stopRecording, releaseMedia, socketRef, roomId, sessionId, dispatch, navigate]);
+
+  // ── Loading state ──────────────────────────────────────────────────────────
+  if (!bootstrapped) return <PageLoader />;
+
+  // ── Panel width ────────────────────────────────────────────────────────────
   return (
-    <div className="h-screen bg-[#0a0a0f] text-white flex flex-col overflow-hidden">
+    <div className="h-screen w-screen bg-[#0a0a0f] text-white flex flex-col overflow-hidden select-none">
+      {/* Session ended overlay */}
+      <AnimatePresence>
+        {sessionEnded && (
+          <SessionEndedOverlay
+            hasRecording={!!recordingBlob}
+            onDownloadRecording={downloadRecording}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Top bar */}
-      <div className="flex items-center justify-between px-5 py-3 border-b border-white/10 bg-black/40 backdrop-blur-xl">
-        <div className="flex items-center gap-3">
-          <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse" />
-          <span className="text-sm font-medium">Live Session</span>
-          <span className="px-2 py-0.5 rounded-full bg-white/10 text-xs font-mono">{formatTime(elapsed)}</span>
-        </div>
-        <div className="flex items-center gap-2 text-sm text-white/60">
-          <Users size={14} />
-          <span>Session #{id || 'b1'}</span>
-        </div>
-        <Link to="/" className="flex items-center gap-1.5 text-xs text-white/50 hover:text-white transition-colors">
-          <Settings size={14} />
-        </Link>
-      </div>
+      <TopBar bookingId={bookingId} />
 
-      {/* Content */}
+      {/* Main content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Video area */}
-        <div className="flex-1 flex flex-col">
-          <div className="flex-1 grid grid-cols-2 gap-2 p-3">
-            {/* Remote video */}
-            <div className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-slate-800 to-slate-900 border border-white/5">
-              <img
-                src="https://i.pravatar.cc/600?img=47"
-                alt="Interviewer"
-                className="w-full h-full object-cover opacity-80"
-              />
-              <div className="absolute bottom-3 left-3 px-2.5 py-1 rounded-lg bg-black/60 text-xs font-medium">
-                Sarah Chen · Google
-              </div>
-            </div>
 
-            {/* Local video */}
-            <div className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-slate-700 to-slate-800 border border-white/5">
-              <div className="w-full h-full flex items-center justify-center">
-                {camOn ? (
-                  <img
-                    src="https://i.pravatar.cc/600?img=33"
-                    alt="You"
-                    className="w-full h-full object-cover opacity-80"
+        {/* ── Video grid ─────────────────────────────────────────────────── */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex-1 p-3 overflow-hidden">
+            <div className={clsx(
+              'h-full grid gap-2',
+              remoteParticipant ? 'grid-cols-2' : 'grid-cols-1 max-w-2xl mx-auto'
+            )}>
+              {/* Remote tile */}
+              {remoteParticipant ? (
+                <VideoTile
+                  key={remoteParticipant.userId}
+                  participant={remoteParticipant}
+                  stream={remoteStream}
+                  isLarge
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center rounded-2xl bg-[#111118] border border-white/5 gap-4">
+                  <div className="w-12 h-12 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                  <p className="text-white/40 text-sm">Waiting for participant to join…</p>
+                </div>
+              )}
+
+              {/* Local tile */}
+              {selfParticipant && (
+                <VideoTile
+                  key="local"
+                  participant={{
+                    ...selfParticipant,
+                    displayName: selfParticipant.displayName || user?.name || 'You',
+                    isSelf: true,
+                  }}
+                  stream={localStreamRef.current}
+                  isLocal
+                />
+              )}
+
+              {/* Fallback local tile (before room-state bootstrap) */}
+              {!selfParticipant && (
+                <div className="relative rounded-2xl overflow-hidden bg-[#111118] border border-white/5">
+                  <video
+                    ref={localVideoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    className="w-full h-full object-cover scale-x-[-1]"
                   />
-                ) : (
-                  <div className="flex flex-col items-center gap-3 text-white/40">
-                    <VideoOff size={40} />
-                    <span className="text-sm">Camera off</span>
+                  <div className="absolute bottom-3 left-3 px-2.5 py-1 bg-black/60 rounded-lg text-xs font-medium">
+                    {user?.name ?? 'You'} (connecting…)
                   </div>
-                )}
-              </div>
-              <div className="absolute bottom-3 left-3 px-2.5 py-1 rounded-lg bg-black/60 text-xs font-medium">
-                You
-              </div>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Controls */}
-          <div className="flex items-center justify-center gap-3 py-4 px-6 border-t border-white/5">
-            <ControlBtn active={micOn} onClick={() => setMicOn(!micOn)} icon={micOn ? <Mic size={18} /> : <MicOff size={18} />} label={micOn ? 'Mute' : 'Unmute'} />
-            <ControlBtn active={camOn} onClick={() => setCamOn(!camOn)} icon={camOn ? <Video size={18} /> : <VideoOff size={18} />} label={camOn ? 'Stop video' : 'Start video'} />
-            <ControlBtn icon={<ScreenShare size={18} />} label="Share screen" />
-            <button
-              onClick={() => setTab(tab === 'chat' ? 'code' : 'chat')}
-              className="flex flex-col items-center gap-1 px-4 py-2 rounded-xl text-white/70 hover:text-white hover:bg-white/10 transition-all"
-            >
-              {tab === 'chat' ? <Code size={18} /> : <MessageSquare size={18} />}
-              <span className="text-[10px]">{tab === 'chat' ? 'Code' : 'Chat'}</span>
-            </button>
-            <button className="flex flex-col items-center gap-1 px-4 py-2 rounded-xl bg-red-500 hover:bg-red-600 text-white transition-all ml-4">
-              <PhoneOff size={18} />
-              <span className="text-[10px]">End</span>
-            </button>
-          </div>
+          {/* Control bar */}
+          <ControlBar
+            onToggleMic={handleToggleMic}
+            onToggleCam={handleToggleCam}
+            onScreenShare={handleScreenShare}
+            onEndCall={handleEndCall}
+            onStartRecord={handleStartRecord}
+            onStopRecord={handleStopRecord}
+            onDownloadRecord={downloadRecording}
+            hasRecordingBlob={!!recordingBlob}
+          />
         </div>
 
-        {/* Side panel */}
+        {/* ── Side panel ─────────────────────────────────────────────────── */}
         <motion.div
+          key="side-panel"
           initial={{ width: 0, opacity: 0 }}
           animate={{ width: 340, opacity: 1 }}
-          className="flex flex-col border-l border-white/10 bg-black/40 backdrop-blur-xl overflow-hidden"
-          style={{ minWidth: 340 }}
+          transition={{ duration: 0.25 }}
+          className="flex-shrink-0 flex flex-col border-l border-white/5 bg-black/40 backdrop-blur-xl overflow-hidden"
+          style={{ minWidth: 0 }}
         >
-          {/* Panel tabs */}
-          <div className="flex border-b border-white/10">
-            {(['chat', 'code'] as const).map((t) => (
+          {/* Panel tab headers */}
+          <div className="flex border-b border-white/5">
+            {(['chat', 'code', 'participants'] as const).map((tab) => (
               <button
-                key={t}
-                onClick={() => setTab(t)}
+                key={tab}
+                onClick={() => dispatch(setActivePanel(tab))}
                 className={clsx(
-                  'flex-1 py-3 text-sm font-medium capitalize transition-colors',
-                  tab === t ? 'text-white border-b-2 border-[var(--accent)]' : 'text-white/40 hover:text-white/70'
+                  'flex-1 py-3 text-xs font-medium capitalize transition-colors',
+                  activePanel === tab
+                    ? 'text-white border-b-2 border-[var(--accent)]'
+                    : 'text-white/35 hover:text-white/60'
                 )}
               >
-                {t === 'chat' ? <><MessageSquare size={14} className="inline mr-1.5" />Chat</> : <><Code size={14} className="inline mr-1.5" />Whiteboard</>}
+                {tab}
               </button>
             ))}
           </div>
 
-          {/* Chat */}
-          {tab === 'chat' && (
-            <div className="flex flex-col flex-1 overflow-hidden">
-              <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {messages.map((m) => (
-                  <div key={m.id} className={clsx('flex flex-col gap-1', m.mine ? 'items-end' : 'items-start')}>
-                    <span className="text-xs text-white/40 px-1">{m.author}</span>
-                    <div
-                      className={clsx(
-                        'max-w-[80%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed',
-                        m.mine
-                          ? 'bg-[var(--accent)] text-white rounded-br-md'
-                          : 'bg-white/10 text-white/90 rounded-bl-md'
-                      )}
-                    >
-                      {m.text}
-                    </div>
-                  </div>
-                ))}
-                <div ref={chatBottomRef} />
-              </div>
-              <div className="p-3 border-t border-white/10">
-                <div className="flex items-center gap-2 bg-white/5 rounded-2xl border border-white/10 px-4 py-2.5">
-                  <input
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
-                    placeholder="Send a message..."
-                    className="flex-1 bg-transparent text-sm text-white placeholder:text-white/30 outline-none"
-                  />
-                  <button onClick={sendMessage} className="text-[var(--accent)] hover:text-white transition-colors">
-                    <Send size={16} />
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Code whiteboard */}
-          {tab === 'code' && (
-            <div className="flex-1 overflow-hidden flex flex-col">
-              <div className="px-4 py-2.5 border-b border-white/10 flex items-center justify-between">
-                <span className="text-xs text-white/50 font-mono">notes.ts</span>
-                <span className="text-xs text-emerald-400">● shared</span>
-              </div>
-              <textarea
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                className="flex-1 bg-transparent text-xs font-mono text-slate-300 p-4 resize-none outline-none leading-relaxed"
-                spellCheck={false}
-              />
-            </div>
-          )}
+          {/* Panel content */}
+          <div className="flex-1 overflow-hidden">
+            {activePanel === 'chat' && (
+              <ChatPanel socketRef={socketRef} roomId={roomId ?? null} />
+            )}
+            {activePanel === 'code' && (
+              <CodePanel socketRef={socketRef} roomId={roomId ?? null} />
+            )}
+            {activePanel === 'participants' && (
+              <ParticipantList />
+            )}
+          </div>
         </motion.div>
       </div>
     </div>
-  );
-}
-
-function ControlBtn({
-  icon, label, active = true, onClick,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  active?: boolean;
-  onClick?: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={clsx(
-        'flex flex-col items-center gap-1 px-4 py-2 rounded-xl transition-all',
-        active
-          ? 'text-white/70 hover:text-white hover:bg-white/10'
-          : 'text-red-400 bg-red-500/10 hover:bg-red-500/20'
-      )}
-    >
-      {icon}
-      <span className="text-[10px]">{label}</span>
-    </button>
   );
 }

@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Provider } from 'react-redux';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'react-hot-toast';
@@ -7,6 +7,7 @@ import { store } from './store';
 import Layout from './components/layout/Layout';
 import { PageLoader } from './components/ui/Loader';
 import ProtectedRoute from './components/layout/ProtectedRoute';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Lazy-loaded pages
 const HomePage = lazy(() => import('./pages/Home'));
@@ -20,6 +21,7 @@ const CheckoutPage = lazy(() => import('./pages/checkout/CheckoutPage'));
 const InterviewRoomPage = lazy(() => import('./pages/room/InterviewRoomPage'));
 const SubscriptionsPage = lazy(() => import('./pages/SubscriptionsPage'));
 const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 1000 * 60 * 5, retry: 1 } },
@@ -37,6 +39,7 @@ function ThemeInit() {
 
 export default function App() {
   return (
+    <ErrorBoundary>
     <Provider store={store}>
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
@@ -80,11 +83,12 @@ export default function App() {
                 <Route path="/room/:id" element={<InterviewRoomPage />} />
               </Route>
 
-              <Route path="*" element={<Navigate to="/" replace />} />
+              <Route path="*" element={<NotFoundPage />} />
             </Routes>
           </Suspense>
         </BrowserRouter>
       </QueryClientProvider>
     </Provider>
+    </ErrorBoundary>
   );
 }

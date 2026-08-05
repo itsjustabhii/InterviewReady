@@ -1,95 +1,148 @@
-import { useState, useMemo } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Search, SlidersHorizontal, X } from 'lucide-react';
-import { mockInterviewers } from '../../data/mockData';
+import { Search, SlidersHorizontal, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import InterviewerCard from '../../components/ui/InterviewerCard';
+import { Spinner } from '../../components/ui/Loader';
+import { useInterviewers, useInterviewerFilterMeta } from '../../hooks/useApi';
+import type { InterviewerListParams } from '../../hooks/useApi';
+import type { Interviewer } from '../../types';
 
-const EXPERTISE_OPTIONS = [
-  'System Design', 'Algorithms', 'Frontend', 'Backend',
-  'Machine Learning', 'Leadership', 'Behavioral', 'AWS',
-];
+const SORT_OPTIONS = [
+  { value: 'rating', label: 'Top Rated' },
+  { value: 'price_asc', label: 'Price: Low → High' },
+  { value: 'price_desc', label: 'Price: High → Low' },
+  { value: 'experience', label: 'Most Experienced' },
+  { value: 'sessions', label: 'Most Sessions' },
+] as const;
 
-const COMPANY_OPTIONS = ['Google', 'Meta', 'Apple', 'Amazon', 'Netflix', 'Stripe'];
+type SortValue = typeof SORT_OPTIONS[number]['value'];
 
-const PRICE_RANGES = [
-  { label: 'Under $100', min: 0, max: 99 },
-  { label: '$100–$150', min: 100, max: 150 },
-  { label: '$150–$200', min: 150, max: 200 },
-  { label: '$200+', min: 200, max: Infinity },
-];
+// Map API interviewer shape → InterviewerCard shape
+function mapInterviewer(iv: Interviewer): Interviewer {
+  const user = typeof iv.user === 'object' ? iv.user : null;
+  return {
+    ...iv,
+    id: iv._id,
+    name: user ? `${user.firstName} ${user.lastName}` : iv.name ?? 'Interviewer',
+    avatar: user?.avatar ?? iv.avatar ?? '',
+    title: iv.position,
+    price: iv.hourlyRate,
+    reviews: iv.rating.count,
+    sessions: iv.completedInterviews,
+    available: iv.status === 'active',
+  };
+}
 
 export default function InterviewersPage() {
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [selectedExpertise, setSelectedExpertise] = useState<string[]>([]);
-  const [selectedCompany, setSelectedCompany] = useState<string | null>(null);
-  const [priceRange, setPriceRange] = useState<(typeof PRICE_RANGES)[0] | null>(null);
+  const [sortBy, setSortBy] = useState<SortValue>('rating');
+  const [minRating, setMinRating] = useState<number | undefined>();
+  const [maxRate, setMaxRate] = useState<number | undefined>();
   const [showFilters, setShowFilters] = useState(false);
+  const [page, setPage] = useState(1);
 
-  const filtered = useMemo(() => {
-    return mockInterviewers.filter((iv) => {
-      const matchSearch =
-        !search ||
-        iv.name.toLowerCase().includes(search.toLowerCase()) ||
-        iv.company.toLowerCase().includes(search.toLowerCase()) ||
-        iv.expertise.some((e) => e.toLowerCase().includes(search.toLowerCase()));
-      const matchExpertise =
-        selectedExpertise.length === 0 ||
-        selectedExpertise.every((e) => iv.expertise.includes(e));
-      const matchCompany = !selectedCompany || iv.company === selectedCompany;
-      const matchPrice = !priceRange || (iv.price >= priceRange.min && iv.price <= priceRange.max);
-      return matchSearch && matchExpertise && matchCompany && matchPrice;
-    });
-  }, [search, selectedExpertise, selectedCompany, priceRange]);
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  const toggleExpertise = (tag: string) =>
+  const onSearchChange = (val: string) => {
+    setSearch(val);
+    clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => {
+      setDebouncedSearch(val);
+      setPage(1);
+    }, 400);
+  };
+
+  const params: InterviewerListParams = {
+    page,
+    limit: 12,
+    search: debouncedSearch || undefined,
+    expertise: selectedExpertise.length > 0 ? selectedExpertise : undefined,
+    sortBy,
+    minRating,
+    maxRate,
+  };
+
+  const { data, isLoading, isError } = useInterviewers(params);
+  const { data: meta } = useInterviewerFilterMeta();
+
+  const interviewers = (data?.data ?? []).map(mapInterviewer);
+  const pagination = data?.pagination;
+  const expertiseTags = meta?.expertiseTags ?? [];
+
+  const toggleExpertise = useCallback((tag: string) => {
     setSelectedExpertise((prev) =>
       prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
     );
+    setPage(1);
+  }, []);
 
   const clearFilters = () => {
     setSearch('');
+    setDebouncedSearch('');
     setSelectedExpertise([]);
-    setSelectedCompany(null);
-    setPriceRange(null);
+    setSortBy('rating');
+    setMinRating(undefined);
+    setMaxRate(undefined);
+    setPage(1);
   };
 
-  const hasFilters = search || selectedExpertise.length > 0 || selectedCompany || priceRange;
+  const hasFilters = debouncedSearch || selectedExpertise.length > 0 || minRating || maxRate;
 
   return (
     <main className="pt-24 pb-20">
       <div className="container-xl">
-        {/* Header */}
+        {/* Hero */}
         <motion.div
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-10"
+          transition={{ duration: 0.4 }}
+          className="text-center mb-10"
         >
-          <p className="text-label mb-2">Expert Coaches</p>
-          <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-            <h1 className="heading-section">Find your interviewer</h1>
-            <p className="text-[var(--text-secondary)] text-sm">{filtered.length} coaches available</p>
-          </div>
+          <p className="text-label mb-3">Our Experts</p>
+          <h1 className="text-4xl md:text-5xl font-bold mb-4">
+            Find Your Perfect
+            <span className="text-gradient"> Interviewer</span>
+          </h1>
+          <p className="text-[var(--text-secondary)] text-lg max-w-xl mx-auto">
+            Industry professionals from top tech companies ready to help you land your dream role.
+          </p>
         </motion.div>
 
-        {/* Search + filter bar */}
-        <div className="flex gap-3 mb-6">
+        {/* Search + Sort bar */}
+        <div className="flex flex-col sm:flex-row gap-3 mb-6">
           <div className="relative flex-1">
-            <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]" />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-secondary)]" />
             <input
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              type="text"
-              placeholder="Search by name, company, or skill..."
-              className="input-field pl-10"
+              onChange={(e) => onSearchChange(e.target.value)}
+              placeholder="Search by name, company, or skill…"
+              className="input-field pl-10 w-full"
             />
           </div>
+          <select
+            value={sortBy}
+            onChange={(e) => { setSortBy(e.target.value as SortValue); setPage(1); }}
+            className="input-field w-full sm:w-48"
+          >
+            {SORT_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
           <button
-            onClick={() => setShowFilters(!showFilters)}
-            className="btn-secondary gap-2 whitespace-nowrap"
+            onClick={() => setShowFilters((p) => !p)}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border transition-colors font-medium text-sm ${
+              showFilters
+                ? 'bg-[var(--accent)] text-white border-[var(--accent)]'
+                : 'border-[var(--border)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+            }`}
           >
             <SlidersHorizontal size={16} />
             Filters
-            {hasFilters && <span className="w-2 h-2 rounded-full bg-[var(--accent)]" />}
+            {hasFilters && (
+              <span className="w-2 h-2 rounded-full bg-red-400 ml-1" />
+            )}
           </button>
         </div>
 
@@ -99,21 +152,33 @@ export default function InterviewersPage() {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="glass-card mb-8 overflow-hidden"
+            className="glass-card mb-6 space-y-5"
           >
-            <div className="grid md:grid-cols-3 gap-6">
-              {/* Expertise */}
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-sm text-[var(--text-primary)]">Filters</h3>
+              {hasFilters && (
+                <button
+                  onClick={clearFilters}
+                  className="flex items-center gap-1 text-xs text-red-500 hover:opacity-80"
+                >
+                  <X size={12} /> Clear all
+                </button>
+              )}
+            </div>
+
+            {/* Expertise */}
+            {expertiseTags.length > 0 && (
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] mb-3">Expertise</p>
+                <p className="text-xs font-medium text-[var(--text-secondary)] mb-2">Expertise</p>
                 <div className="flex flex-wrap gap-2">
-                  {EXPERTISE_OPTIONS.map((tag) => (
+                  {expertiseTags.slice(0, 20).map((tag) => (
                     <button
                       key={tag}
                       onClick={() => toggleExpertise(tag)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                      className={`px-3 py-1 rounded-full text-sm border transition-colors ${
                         selectedExpertise.includes(tag)
                           ? 'bg-[var(--accent)] text-white border-[var(--accent)]'
-                          : 'border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--accent)] hover:text-[var(--accent)]'
+                          : 'border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--accent)]'
                       }`}
                     >
                       {tag}
@@ -121,72 +186,141 @@ export default function InterviewersPage() {
                   ))}
                 </div>
               </div>
+            )}
 
-              {/* Company */}
+            {/* Price range */}
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] mb-3">Company</p>
-                <div className="flex flex-wrap gap-2">
-                  {COMPANY_OPTIONS.map((c) => (
-                    <button
-                      key={c}
-                      onClick={() => setSelectedCompany(selectedCompany === c ? null : c)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
-                        selectedCompany === c
-                          ? 'bg-[var(--accent)] text-white border-[var(--accent)]'
-                          : 'border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--accent)]'
-                      }`}
-                    >
-                      {c}
-                    </button>
+                <p className="text-xs font-medium text-[var(--text-secondary)] mb-2">Min Rating</p>
+                <select
+                  value={minRating ?? ''}
+                  onChange={(e) => { setMinRating(e.target.value ? Number(e.target.value) : undefined); setPage(1); }}
+                  className="input-field w-full text-sm"
+                >
+                  <option value="">Any rating</option>
+                  {[3, 3.5, 4, 4.5].map((r) => (
+                    <option key={r} value={r}>{r}+ stars</option>
                   ))}
-                </div>
+                </select>
               </div>
-
-              {/* Price */}
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-[var(--text-secondary)] mb-3">Price per session</p>
-                <div className="flex flex-wrap gap-2">
-                  {PRICE_RANGES.map((pr) => (
-                    <button
-                      key={pr.label}
-                      onClick={() => setPriceRange(priceRange?.label === pr.label ? null : pr)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
-                        priceRange?.label === pr.label
-                          ? 'bg-[var(--accent)] text-white border-[var(--accent)]'
-                          : 'border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--accent)]'
-                      }`}
-                    >
-                      {pr.label}
-                    </button>
+                <p className="text-xs font-medium text-[var(--text-secondary)] mb-2">Max Rate (₹/hr)</p>
+                <select
+                  value={maxRate ?? ''}
+                  onChange={(e) => { setMaxRate(e.target.value ? Number(e.target.value) : undefined); setPage(1); }}
+                  className="input-field w-full text-sm"
+                >
+                  <option value="">Any price</option>
+                  {[1000, 2000, 3000, 5000, 10000].map((p) => (
+                    <option key={p} value={p}>Up to ₹{p.toLocaleString()}</option>
                   ))}
-                </div>
+                </select>
               </div>
             </div>
-
-            {hasFilters && (
-              <button onClick={clearFilters} className="flex items-center gap-1.5 text-sm text-red-500 mt-5 hover:underline">
-                <X size={14} /> Clear all filters
-              </button>
-            )}
           </motion.div>
         )}
 
-        {/* Grid */}
-        {filtered.length > 0 ? (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filtered.map((iv, i) => (
-              <InterviewerCard key={iv.id} interviewer={iv} index={i} />
+        {/* Active filter chips */}
+        {selectedExpertise.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-4">
+            {selectedExpertise.map((tag) => (
+              <span
+                key={tag}
+                className="flex items-center gap-1 px-3 py-1 rounded-full bg-[var(--accent)]/10 text-[var(--accent)] text-xs font-medium"
+              >
+                {tag}
+                <button onClick={() => toggleExpertise(tag)}>
+                  <X size={10} />
+                </button>
+              </span>
             ))}
           </div>
+        )}
+
+        {/* Results count */}
+        {pagination && (
+          <p className="text-sm text-[var(--text-secondary)] mb-4">
+            {pagination.total} interviewer{pagination.total !== 1 ? 's' : ''} found
+            {pagination.totalPages > 1 && ` · Page ${page} of ${pagination.totalPages}`}
+          </p>
+        )}
+
+        {/* Grid */}
+        {isLoading ? (
+          <div className="flex justify-center py-24">
+            <Spinner className="w-10 h-10" />
+          </div>
+        ) : isError ? (
+          <div className="text-center py-24 text-[var(--text-secondary)]">
+            <p className="text-lg mb-2">Failed to load interviewers</p>
+            <p className="text-sm opacity-60">Please check your connection and try again.</p>
+          </div>
+        ) : interviewers.length === 0 ? (
+          <div className="text-center py-24 text-[var(--text-secondary)]">
+            <p className="text-2xl mb-2">😕</p>
+            <p className="font-medium mb-1">No interviewers found</p>
+            <p className="text-sm">Try adjusting your filters</p>
+            {hasFilters && (
+              <button onClick={clearFilters} className="mt-4 text-[var(--accent)] text-sm hover:underline">
+                Clear filters
+              </button>
+            )}
+          </div>
         ) : (
-          <div className="text-center py-24">
-            <p className="text-5xl mb-4">🔍</p>
-            <h3 className="text-xl font-semibold mb-2">No results found</h3>
-            <p className="text-[var(--text-secondary)] text-sm">Try adjusting your filters</p>
-            <button onClick={clearFilters} className="btn-secondary mt-4">Clear filters</button>
+          <motion.div
+            className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6"
+            initial="hidden"
+            animate="visible"
+            variants={{ visible: { transition: { staggerChildren: 0.06 } } }}
+          >
+            {interviewers.map((iv) => (
+              <InterviewerCard key={iv._id} interviewer={iv} />
+            ))}
+          </motion.div>
+        )}
+
+        {/* Pagination */}
+        {pagination && pagination.totalPages > 1 && (
+          <div className="flex items-center justify-center gap-2 mt-12">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={!pagination.hasPrevPage}
+              className="p-2 rounded-xl border border-[var(--border)] disabled:opacity-30 hover:bg-[var(--glass)] transition-colors"
+            >
+              <ChevronLeft size={18} />
+            </button>
+            {Array.from({ length: pagination.totalPages }, (_, i) => i + 1)
+              .filter((p) => Math.abs(p - page) <= 2 || p === 1 || p === pagination.totalPages)
+              .map((p, idx, arr) => (
+                <>
+                  {idx > 0 && arr[idx - 1] !== p - 1 && (
+                    <span key={`ellipsis-${p}`} className="px-1 text-[var(--text-secondary)]">…</span>
+                  )}
+                  <button
+                    key={p}
+                    onClick={() => setPage(p)}
+                    className={`w-9 h-9 rounded-xl text-sm font-medium transition-colors ${
+                      p === page
+                        ? 'bg-[var(--accent)] text-white'
+                        : 'border border-[var(--border)] hover:bg-[var(--glass)] text-[var(--text-secondary)]'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                </>
+              ))}
+            <button
+              onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))}
+              disabled={!pagination.hasNextPage}
+              className="p-2 rounded-xl border border-[var(--border)] disabled:opacity-30 hover:bg-[var(--glass)] transition-colors"
+            >
+              <ChevronRight size={18} />
+            </button>
           </div>
         )}
       </div>
     </main>
   );
 }
+
+// Made with Bob

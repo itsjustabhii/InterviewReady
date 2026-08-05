@@ -18,11 +18,17 @@ function hashColor(str: string) {
 interface Props {
   label: string;
   className?: string;
+  small?: boolean;
 }
 
-export default function Badge({ label, className }: Props) {
+export default function Badge({ label, className, small }: Props) {
   return (
-    <span className={clsx('px-2.5 py-1 rounded-full text-xs font-medium', hashColor(label), className)}>
+    <span className={clsx(
+      'rounded-full font-medium',
+      small ? 'px-2 py-0.5 text-[10px]' : 'px-2.5 py-1 text-xs',
+      hashColor(label),
+      className
+    )}>
       {label}
     </span>
   );

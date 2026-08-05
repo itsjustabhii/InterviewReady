@@ -54,8 +54,8 @@ export default function InterviewerCard({ interviewer, index = 0 }: Props) {
       {/* Stats */}
       <div className="flex items-center justify-between text-sm border-t border-[var(--border)] pt-4 mt-auto">
         <div className="flex items-center gap-1.5">
-          <StarRating rating={interviewer.rating} />
-          <span className="font-semibold text-sm">{interviewer.rating}</span>
+          <StarRating rating={interviewer.rating.average ?? interviewer.rating} />
+          <span className="font-semibold text-sm">{typeof interviewer.rating === 'object' ? interviewer.rating.average.toFixed(1) : interviewer.rating}</span>
           <span className="text-[var(--text-secondary)] text-xs">({interviewer.reviews})</span>
         </div>
         <div className="flex items-center gap-1 text-[var(--text-secondary)] text-xs">

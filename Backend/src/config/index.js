@@ -152,6 +152,14 @@ const config = {
     pingInterval: 25000,
   },
 
+  // WebRTC Configuration
+  webrtc: {
+    stunServer: process.env.STUN_SERVER || 'stun:stun.l.google.com:19302',
+    turnServer: process.env.TURN_SERVER || '',
+    turnUsername: process.env.TURN_USERNAME || '',
+    turnCredential: process.env.TURN_CREDENTIAL || '',
+  },
+
   // Booking Configuration
   booking: {
     slotDuration: 60, // minutes
