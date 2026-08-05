@@ -457,6 +457,269 @@ export const useAdminBookings = (params: { page?: number; status?: string } = {}
     },
   });
 
+// ─── Extended Admin Hooks ─────────────────────────────────────────────────────
+export const useAdminUserAnalytics = () =>
+  useQuery({
+    queryKey: ['admin', 'analytics', 'users'],
+    queryFn: async () => {
+      const { data } = await api.get('/v1/admin/analytics/users');
+      return data.data as import('../types').UserAnalytics;
+    },
+  });
+
+export const useSuspendInterviewer = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason?: string }) => {
+      const { data } = await api.patch(`/v1/admin/interviewers/${id}/suspend`, { reason });
+      return data.data as import('../types').Interviewer;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'interviewers'] }),
+  });
+};
+
+export const useReactivateInterviewer = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { data } = await api.patch(`/v1/admin/interviewers/${id}/reactivate`);
+      return data.data as import('../types').Interviewer;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'interviewers'] }),
+  });
+};
+
+export const useAdminCancelBooking = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason?: string }) => {
+      const { data } = await api.patch(`/v1/admin/bookings/${id}/cancel`, { reason });
+      return data.data as import('../types').Booking;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'bookings'] }),
+  });
+};
+
+export const useAdminPayments = (params: { page?: number; status?: string; dateFrom?: string; dateTo?: string } = {}) =>
+  useQuery({
+    queryKey: ['admin', 'payments', params],
+    queryFn: async () => {
+      const { data } = await api.get('/v1/admin/payments', { params });
+      return data as { data: import('../types').Payment[]; pagination: import('../types').PaginationMeta };
+    },
+  });
+
+export const usePaymentAnalytics = () =>
+  useQuery({
+    queryKey: ['admin', 'analytics', 'payments'],
+    queryFn: async () => {
+      const { data } = await api.get('/v1/admin/payments/analytics');
+      return data.data as import('../types').PaymentAnalytics;
+    },
+  });
+
+export const useAdminInitiateRefund = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, amount, reason }: { id: string; amount?: number; reason?: string }) => {
+      const { data } = await api.post(`/v1/admin/payments/${id}/refund`, { amount, reason });
+      return data.data as import('../types').Payment;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['admin', 'payments'] });
+      qc.invalidateQueries({ queryKey: ['admin', 'stats'] });
+    },
+  });
+};
+
+export const useAdminSubscriptions = (params: { page?: number; status?: string; plan?: string } = {}) =>
+  useQuery({
+    queryKey: ['admin', 'subscriptions', params],
+    queryFn: async () => {
+      const { data } = await api.get('/v1/admin/subscriptions', { params });
+      return data as { data: import('../types').Subscription[]; pagination: import('../types').PaginationMeta };
+    },
+  });
+
+export const useSubscriptionAnalytics = () =>
+  useQuery({
+    queryKey: ['admin', 'analytics', 'subscriptions'],
+    queryFn: async () => {
+      const { data } = await api.get('/v1/admin/subscriptions/analytics');
+      return data.data as import('../types').SubscriptionAnalytics;
+    },
+  });
+
+export const useAdminUpdateSubscription = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, status, reason }: { id: string; status: string; reason?: string }) => {
+      const { data } = await api.patch(`/v1/admin/subscriptions/${id}/status`, { status, reason });
+      return data.data as import('../types').Subscription;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'subscriptions'] }),
+  });
+};
+
+export const useAdminReviews = (params: { page?: number; moderationStatus?: string } = {}) =>
+  useQuery({
+    queryKey: ['admin', 'reviews', params],
+    queryFn: async () => {
+      const { data } = await api.get('/v1/admin/reviews', { params });
+      return data as { data: import('../types').Review[]; pagination: import('../types').PaginationMeta };
+    },
+  });
+
+export const useAdminModerateReview = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      const { data } = await api.patch(`/v1/admin/reviews/${id}/moderate`, { status });
+      return data.data as import('../types').Review;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'reviews'] }),
+  });
+};
+
+export const useAdminTestimonials = (params: { page?: number; isPublished?: boolean } = {}) =>
+  useQuery({
+    queryKey: ['admin', 'testimonials', params],
+    queryFn: async () => {
+      const { data } = await api.get('/v1/admin/testimonials', { params });
+      return data as { data: import('../types').Testimonial[]; pagination: import('../types').PaginationMeta };
+    },
+  });
+
+export const useCreateTestimonial = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: Partial<import('../types').Testimonial>) => {
+      const { data } = await api.post('/v1/admin/testimonials', payload);
+      return data.data as import('../types').Testimonial;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'testimonials'] }),
+  });
+};
+
+export const useUpdateTestimonial = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, updates }: { id: string; updates: Partial<import('../types').Testimonial> }) => {
+      const { data } = await api.patch(`/v1/admin/testimonials/${id}`, updates);
+      return data.data as import('../types').Testimonial;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'testimonials'] }),
+  });
+};
+
+export const useDeleteTestimonial = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => { await api.delete(`/v1/admin/testimonials/${id}`); },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'testimonials'] }),
+  });
+};
+
+export const usePromoteReviewToTestimonial = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (reviewId: string) => {
+      const { data } = await api.post(`/v1/admin/testimonials/from-review/${reviewId}`);
+      return data.data as import('../types').Testimonial;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'testimonials'] }),
+  });
+};
+
+export const useAdminCampaigns = (params: { page?: number; status?: string } = {}) =>
+  useQuery({
+    queryKey: ['admin', 'campaigns', params],
+    queryFn: async () => {
+      const { data } = await api.get('/v1/admin/campaigns', { params });
+      return data as { data: import('../types').EmailCampaign[]; pagination: import('../types').PaginationMeta };
+    },
+  });
+
+export const useCreateCampaign = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: Partial<import('../types').EmailCampaign>) => {
+      const { data } = await api.post('/v1/admin/campaigns', payload);
+      return data.data as import('../types').EmailCampaign;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'campaigns'] }),
+  });
+};
+
+export const useUpdateCampaign = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, updates }: { id: string; updates: Partial<import('../types').EmailCampaign> }) => {
+      const { data } = await api.patch(`/v1/admin/campaigns/${id}`, updates);
+      return data.data as import('../types').EmailCampaign;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'campaigns'] }),
+  });
+};
+
+export const useScheduleCampaign = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, scheduledAt }: { id: string; scheduledAt: string }) => {
+      const { data } = await api.post(`/v1/admin/campaigns/${id}/schedule`, { scheduledAt });
+      return data.data as import('../types').EmailCampaign;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'campaigns'] }),
+  });
+};
+
+export const useCancelCampaign = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { data } = await api.post(`/v1/admin/campaigns/${id}/cancel`);
+      return data.data as import('../types').EmailCampaign;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'campaigns'] }),
+  });
+};
+
+export const useDeleteCampaign = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => { await api.delete(`/v1/admin/campaigns/${id}`); },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'campaigns'] }),
+  });
+};
+
+export const useAdminBroadcastNotifications = (params: { page?: number } = {}) =>
+  useQuery({
+    queryKey: ['admin', 'broadcast-notifications', params],
+    queryFn: async () => {
+      const { data } = await api.get('/v1/admin/notifications', { params });
+      return data as { data: import('../types').BroadcastNotification[]; pagination: import('../types').PaginationMeta };
+    },
+  });
+
+export const useSendPlatformNotification = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: {
+      title: string;
+      message: string;
+      type?: string;
+      priority?: string;
+      targetAudience?: string;
+      actionUrl?: string;
+      actionText?: string;
+    }) => {
+      const { data } = await api.post('/v1/admin/notifications/broadcast', payload);
+      return data.data as { recipientCount: number };
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'broadcast-notifications'] }),
+  });
+};
+
 // ─── Session / Room ───────────────────────────────────────────────────────────
 export const useRoomForBooking = (bookingId: string) =>
   useQuery({

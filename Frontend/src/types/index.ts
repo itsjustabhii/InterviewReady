@@ -283,7 +283,92 @@ export interface AdminStats {
   revenue: { total: number; thisMonth: number };
   activeSubscriptions: number;
   pendingReviews: number;
+  totalRefunds: number;
+  pendingCampaigns: number;
   monthlyRevenue: Array<{ _id: { year: number; month: number }; revenue: number; count: number }>;
+  subsByPlan: Array<{ _id: string; count: number; revenue: number }>;
+  dailySignups: Array<{ _id: string; count: number }>;
+}
+
+// ─── Testimonial ──────────────────────────────────────────────────────────────
+export interface Testimonial {
+  _id: string;
+  user?: Pick<User, '_id' | 'firstName' | 'lastName' | 'avatar'>;
+  displayName: string;
+  displayTitle?: string;
+  avatarUrl?: string;
+  content: string;
+  rating: number;
+  outcome?: string;
+  isPublished: boolean;
+  isFeatured: boolean;
+  displayOrder: number;
+  source: 'organic' | 'imported' | 'admin_created';
+  review?: string;
+  publishedAt?: string;
+  createdAt: string;
+}
+
+// ─── Email Campaign ───────────────────────────────────────────────────────────
+export interface EmailCampaign {
+  _id: string;
+  name: string;
+  subject: string;
+  previewText?: string;
+  htmlBody: string;
+  plainTextBody?: string;
+  targetAudience: 'all' | 'users' | 'interviewers' | 'pro_subscribers' | 'inactive_users' | 'custom';
+  status: 'draft' | 'scheduled' | 'sending' | 'sent' | 'paused' | 'cancelled';
+  scheduledAt?: string;
+  sentAt?: string;
+  stats: {
+    recipientCount: number;
+    sentCount: number;
+    deliveredCount: number;
+    openCount: number;
+    clickCount: number;
+    bounceCount: number;
+    unsubscribeCount: number;
+  };
+  openRate?: number;
+  clickRate?: number;
+  createdBy: Pick<User, '_id' | 'firstName' | 'lastName'> | string;
+  tags?: string[];
+  createdAt: string;
+}
+
+// ─── Analytics ────────────────────────────────────────────────────────────────
+export interface UserAnalytics {
+  new7d: number;
+  new30d: number;
+  new90d: number;
+  byRole: Array<{ _id: string; count: number }>;
+  authProviders: Array<{ _id: string; count: number }>;
+  activeVsInactive: Array<{ _id: boolean; count: number }>;
+  cohort: Array<{ _id: { year: number; month: number }; count: number }>;
+}
+
+export interface PaymentAnalytics {
+  byStatus: Array<{ _id: string; count: number; total: number }>;
+  byMethod: Array<{ _id: string; count: number; total: number }>;
+  monthlyTrend: Array<{ _id: { year: number; month: number }; revenue: number; count: number }>;
+  refundStats: { count: number; totalRefunded: number };
+}
+
+export interface SubscriptionAnalytics {
+  byPlan: Array<{ _id: string; count: number; revenue: number }>;
+  byStatus: Array<{ _id: string; count: number }>;
+  monthlyNew: Array<{ _id: { year: number; month: number }; count: number; revenue: number }>;
+  churnData: Array<{ _id: { year: number; month: number }; count: number }>;
+  mrr: number;
+}
+
+// ─── Platform Notification (broadcast) ───────────────────────────────────────
+export interface BroadcastNotification {
+  _id: { title: string; message: string };
+  doc: Notification;
+  recipients: number;
+  readCount: number;
 }
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
