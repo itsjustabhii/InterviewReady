@@ -1,0 +1,866 @@
+
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>InterviewReady — ERD &amp; Database Design</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,"Segoe UI",system-ui,sans-serif;font-size:14px;line-height:1.6;background:#ffffff;color:#1f2328}
+.page{max-width:1100px;margin:0 auto;padding:32px 24px}
+h1{font-size:22px;font-weight:700;margin-bottom:4px}
+.subtitle{color:#57606a;font-size:13px;margin-bottom:28px}
+h2{font-size:15px;font-weight:700;margin:32px 0 12px;color:#1f2328;border-bottom:1px solid #e5e7eb;padding-bottom:6px}
+h3{font-size:13px;font-weight:700;margin:0 0 6px;color:#1f2328}
+
+/* ERD SVG section */
+.erd-wrap{overflow-x:auto;border:1px solid #e5e7eb;border-radius:6px;background:#f7f8fa;padding:16px;margin-bottom:8px}
+
+/* Schema cards grid */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;margin-bottom:8px}
+.card{border:1px solid #e5e7eb;border-radius:6px;overflow:hidden}
+.card-head{padding:8px 12px;font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;display:flex;align-items:center;gap:8px}
+.card-head .badge{font-size:10px;font-weight:600;padding:1px 6px;border-radius:10px;background:#e5e7eb;color:#57606a}
+.card-body{padding:0}
+table{width:100%;border-collapse:collapse}
+thead th{background:#f7f8fa;font-size:11px;font-weight:600;color:#57606a;padding:5px 10px;text-align:left;border-bottom:1px solid #e5e7eb}
+tbody tr{border-bottom:1px solid #f0f1f3}
+tbody tr:last-child{border-bottom:none}
+tbody td{padding:5px 10px;font-size:12px;vertical-align:top}
+.fn{font-family:"Cascadia Code","Consolas",monospace;font-size:11px;color:#1f2328}
+.ft{color:#3b82d4;font-size:11px;font-family:"Cascadia Code","Consolas",monospace}
+.fk{color:#7c5cd8;font-size:11px}
+.note{font-size:11px;color:#57606a}
+.pk{background:#fff8e1}
+.fkrow{background:#f6f0ff}
+
+/* Colour coding per entity */
+.c-user{background:#e8f4fd;color:#1565c0}
+.c-interviewer{background:#e8f5e9;color:#2e7d32}
+.c-booking{background:#fff3e0;color:#e65100}
+.c-slot{background:#fce4ec;color:#880e4f}
+.c-payment{background:#e0f2f1;color:#00695c}
+.c-subscription{background:#f3e5f5;color:#6a1b9a}
+.c-review{background:#fff9c4;color:#f57f17}
+.c-session{background:#e3f2fd;color:#0d47a1}
+.c-notification{background:#fbe9e7;color:#bf360c}
+.c-email{background:#e8eaf6;color:#283593}
+.c-testimonial{background:#f9fbe7;color:#558b2f}
+
+/* Relationships table */
+.rel-table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:8px}
+.rel-table th{background:#f7f8fa;font-size:11px;font-weight:600;color:#57606a;padding:6px 10px;text-align:left;border-bottom:2px solid #e5e7eb;border-top:1px solid #e5e7eb}
+.rel-table td{padding:5px 10px;border-bottom:1px solid #f0f1f3;vertical-align:top}
+.rel-table tr:last-child td{border-bottom:none}
+.tag{display:inline-block;font-size:10px;font-weight:600;padding:1px 6px;border-radius:4px;background:#e5e7eb;color:#57606a}
+.tag.one{background:#e8f4fd;color:#1565c0}
+.tag.many{background:#fce4ec;color:#880e4f}
+.tag.opt{background:#fff9c4;color:#f57f17}
+
+/* Index legend */
+.idx-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px;margin-bottom:8px}
+.idx-card{border:1px solid #e5e7eb;border-radius:6px;padding:10px 12px;background:#f7f8fa}
+.idx-title{font-size:11px;font-weight:700;color:#57606a;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px}
+.idx-item{font-size:11px;font-family:"Cascadia Code","Consolas",monospace;color:#1f2328;padding:2px 0}
+.idx-item span{color:#57606a}
+
+footer{text-align:center;font-size:11px;color:#57606a;border-top:1px solid #e5e7eb;margin-top:40px;padding-top:16px}
+</style>
+</head>
+<body>
+<div class="page">
+
+<h1>InterviewReady — ERD &amp; Database Design</h1>
+<p class="subtitle">MongoDB / Mongoose · Technical Interview Marketplace Platform · 11 Collections · Generated from source models</p>
+
+
+<h2>Entity-Relationship Diagram</h2>
+<div class="erd-wrap">
+<svg width="1060" height="820" xmlns="http://www.w3.org/2000/svg" style="display:block">
+  <defs>
+    <marker id="arrowEnd">
+      <path d="M0,0 L0,6 L8,3 z" fill="#57606a"></path>
+    </marker>
+    <marker id="arrowStart">
+      <circle cx="3" cy="3" r="2.5" fill="none" stroke="#57606a" stroke-width="1.2"></circle>
+    </marker>
+    
+    <marker id="crow">
+      <path d="M0,1 L8,5 M0,9 L8,5 M0,5 L8,5" stroke="#57606a" stroke-width="1.3" fill="none"></path>
+    </marker>
+    
+    <marker id="single">
+      <line x1="4" y1="0" x2="4" y2="10" stroke="#57606a" stroke-width="1.3"></line>
+    </marker>
+  </defs>
+
+  
+  <rect x="8" y="8" width="1044" height="804" rx="8" fill="#fafbfc" stroke="#e5e7eb"></rect>
+
+  
+
+  
+  <g id="e-user">
+    <rect x="30" y="30" width="180" height="210" rx="6" fill="#e8f4fd" stroke="#90caf9" stroke-width="1.5"></rect>
+    <rect x="30" y="30" width="180" height="28" rx="6" fill="#1565c0"></rect>
+    <rect x="30" y="52" width="180" height="6" fill="#1565c0"></rect>
+    <text x="120" y="49" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">users</text>
+    <text x="40" y="76" fill="#1565c0" font-size="11" font-weight="700">_id</text><text x="120" y="76" fill="#57606a" font-size="10">ObjectId · PK</text>
+    <line x1="30" y1="80" x2="210" y2="80" stroke="#c5dff8" stroke-width="0.8"></line>
+    <text x="40" y="93" fill="#1f2328" font-size="10">firstName, lastName</text>
+    <text x="40" y="106" fill="#1f2328" font-size="10">email · unique</text>
+    <text x="40" y="119" fill="#1f2328" font-size="10">role · user/interviewer/admin</text>
+    <text x="40" y="132" fill="#1f2328" font-size="10">authProvider · local/google/github</text>
+    <text x="40" y="145" fill="#1f2328" font-size="10">isEmailVerified · isActive</text>
+    <text x="40" y="158" fill="#1f2328" font-size="10">phone · avatar · bio</text>
+    <text x="40" y="171" fill="#1f2328" font-size="10">timezone · location</text>
+    <text x="40" y="184" fill="#1f2328" font-size="10">preferences { notifications… }</text>
+    <text x="40" y="197" fill="#1f2328" font-size="10">refreshTokens[] · loginAttempts</text>
+    <text x="40" y="210" fill="#1f2328" font-size="10">deletedAt · lastLogin</text>
+    <text x="40" y="230" fill="#57606a" font-size="9">Idx: email, role+isActive, fulltext</text>
+  </g>
+
+  
+  <g id="e-interviewer">
+    <rect x="270" y="30" width="188" height="230" rx="6" fill="#e8f5e9" stroke="#a5d6a7" stroke-width="1.5"></rect>
+    <rect x="270" y="30" width="188" height="28" rx="6" fill="#2e7d32"></rect>
+    <rect x="270" y="52" width="188" height="6" fill="#2e7d32"></rect>
+    <text x="364" y="49" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">interviewers</text>
+    <text x="280" y="76" fill="#2e7d32" font-size="11" font-weight="700">_id</text><text x="355" y="76" fill="#57606a" font-size="10">ObjectId · PK</text>
+    <line x1="270" y1="80" x2="458" y2="80" stroke="#c8e6c9" stroke-width="0.8"></line>
+    <text x="280" y="93" fill="#7c5cd8" font-size="10">user → users._id · unique</text>
+    <text x="280" y="106" fill="#1f2328" font-size="10">expertise[] · experience</text>
+    <text x="280" y="119" fill="#1f2328" font-size="10">hourlyRate · currency</text>
+    <text x="280" y="132" fill="#1f2328" font-size="10">availability[] { day, slots[] }</text>
+    <text x="280" y="145" fill="#1f2328" font-size="10">rating { average, count }</text>
+    <text x="280" y="158" fill="#1f2328" font-size="10">isVerified · isApproved · status</text>
+    <text x="280" y="171" fill="#1f2328" font-size="10">earnings { total, pending, withdrawn }</text>
+    <text x="280" y="184" fill="#1f2328" font-size="10">certifications[] · bankDetails</text>
+    <text x="280" y="197" fill="#1f2328" font-size="10">totalInterviews · completedInterviews</text>
+    <text x="280" y="210" fill="#1f2328" font-size="10">interviewTypes[] · blackoutDates[]</text>
+    <text x="280" y="223" fill="#1f2328" font-size="10">approvedBy → users._id</text>
+    <text x="280" y="243" fill="#57606a" font-size="9">Idx: expertise, rating, hourlyRate, fulltext</text>
+  </g>
+
+  
+  <g id="e-slot">
+    <rect x="510" y="30" width="185" height="210" rx="6" fill="#fce4ec" stroke="#f48fb1" stroke-width="1.5"></rect>
+    <rect x="510" y="30" width="185" height="28" rx="6" fill="#880e4f"></rect>
+    <rect x="510" y="52" width="185" height="6" fill="#880e4f"></rect>
+    <text x="602" y="49" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">availabilityslots</text>
+    <text x="520" y="76" fill="#880e4f" font-size="11" font-weight="700">_id</text><text x="590" y="76" fill="#57606a" font-size="10">ObjectId · PK</text>
+    <line x1="510" y1="80" x2="695" y2="80" stroke="#f8bbd0" stroke-width="0.8"></line>
+    <text x="520" y="93" fill="#7c5cd8" font-size="10">interviewer → interviewers._id</text>
+    <text x="520" y="106" fill="#7c5cd8" font-size="10">interviewerUser → users._id</text>
+    <text x="520" y="119" fill="#7c5cd8" font-size="10">booking → bookings._id</text>
+    <text x="520" y="132" fill="#1f2328" font-size="10">startDateTime · endDateTime (UTC)</text>
+    <text x="520" y="145" fill="#1f2328" font-size="10">duration · status</text>
+    <text x="520" y="158" fill="#1f2328" font-size="10">interviewTypes[] · priceOverride</text>
+    <text x="520" y="171" fill="#1f2328" font-size="10">timezone · isRecurring</text>
+    <text x="520" y="184" fill="#1f2328" font-size="10">sourceTemplate { day, startTime }</text>
+    <text x="520" y="197" fill="#1f2328" font-size="10">blockReason · currency</text>
+    <text x="520" y="217" fill="#57606a" font-size="9">Idx: interviewer+start+status, TTL endDateTime</text>
+  </g>
+
+  
+  <g id="e-booking">
+    <rect x="30" y="310" width="188" height="250" rx="6" fill="#fff3e0" stroke="#ffcc80" stroke-width="1.5"></rect>
+    <rect x="30" y="310" width="188" height="28" rx="6" fill="#e65100"></rect>
+    <rect x="30" y="332" width="188" height="6" fill="#e65100"></rect>
+    <text x="124" y="329" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">bookings</text>
+    <text x="40" y="355" fill="#e65100" font-size="11" font-weight="700">_id</text><text x="110" y="355" fill="#57606a" font-size="10">ObjectId · PK</text>
+    <line x1="30" y1="359" x2="218" y2="359" stroke="#ffe0b2" stroke-width="0.8"></line>
+    <text x="40" y="372" fill="#7c5cd8" font-size="10">user → users._id</text>
+    <text x="40" y="385" fill="#7c5cd8" font-size="10">interviewer → interviewers._id</text>
+    <text x="40" y="398" fill="#7c5cd8" font-size="10">availabilitySlot → slots._id</text>
+    <text x="40" y="411" fill="#7c5cd8" font-size="10">interviewSession → sessions._id</text>
+    <text x="40" y="424" fill="#7c5cd8" font-size="10">payment → payments._id</text>
+    <text x="40" y="437" fill="#1f2328" font-size="10">scheduledDate · startTime · endTime</text>
+    <text x="40" y="450" fill="#1f2328" font-size="10">duration · interviewType · expertise</text>
+    <text x="40" y="463" fill="#1f2328" font-size="10">status · meetingLink · meetingId</text>
+    <text x="40" y="476" fill="#1f2328" font-size="10">feedback{} · interviewerFeedback{}</text>
+    <text x="40" y="489" fill="#1f2328" font-size="10">cancellation · rescheduleHistory[]</text>
+    <text x="40" y="502" fill="#1f2328" font-size="10">reminderSent · amount · currency</text>
+    <text x="40" y="520" fill="#57606a" font-size="9">Idx: user+date, interviewer+date, compound unique</text>
+  </g>
+
+  
+  <g id="e-payment">
+    <rect x="270" y="310" width="188" height="225" rx="6" fill="#e0f2f1" stroke="#80cbc4" stroke-width="1.5"></rect>
+    <rect x="270" y="310" width="188" height="28" rx="6" fill="#00695c"></rect>
+    <rect x="270" y="332" width="188" height="6" fill="#00695c"></rect>
+    <text x="364" y="329" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">payments</text>
+    <text x="280" y="355" fill="#00695c" font-size="11" font-weight="700">_id</text><text x="350" y="355" fill="#57606a" font-size="10">ObjectId · PK</text>
+    <line x1="270" y1="359" x2="458" y2="359" stroke="#b2dfdb" stroke-width="0.8"></line>
+    <text x="280" y="372" fill="#7c5cd8" font-size="10">user → users._id</text>
+    <text x="280" y="385" fill="#7c5cd8" font-size="10">booking → bookings._id</text>
+    <text x="280" y="398" fill="#7c5cd8" font-size="10">subscription → subscriptions._id</text>
+    <text x="280" y="411" fill="#1f2328" font-size="10">amount · amountInSmallestUnit</text>
+    <text x="280" y="424" fill="#1f2328" font-size="10">currency · status · paymentMethod</text>
+    <text x="280" y="437" fill="#1f2328" font-size="10">razorpayOrderId · razorpayPaymentId</text>
+    <text x="280" y="450" fill="#1f2328" font-size="10">transactionId · invoiceNumber</text>
+    <text x="280" y="463" fill="#1f2328" font-size="10">refund { amount, reason, status… }</text>
+    <text x="280" y="476" fill="#1f2328" font-size="10">taxAmount · taxPercentage</text>
+    <text x="280" y="489" fill="#1f2328" font-size="10">paidAt · refundedAt · description</text>
+    <text x="280" y="507" fill="#57606a" font-size="9">Idx: user+createdAt, booking, subscription</text>
+  </g>
+
+  
+  <g id="e-subscription">
+    <rect x="510" y="310" width="188" height="225" rx="6" fill="#f3e5f5" stroke="#ce93d8" stroke-width="1.5"></rect>
+    <rect x="510" y="310" width="188" height="28" rx="6" fill="#6a1b9a"></rect>
+    <rect x="510" y="332" width="188" height="6" fill="#6a1b9a"></rect>
+    <text x="604" y="329" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">subscriptions</text>
+    <text x="520" y="355" fill="#6a1b9a" font-size="11" font-weight="700">_id</text><text x="590" y="355" fill="#57606a" font-size="10">ObjectId · PK</text>
+    <line x1="510" y1="359" x2="698" y2="359" stroke="#e1bee7" stroke-width="0.8"></line>
+    <text x="520" y="372" fill="#7c5cd8" font-size="10">user → users._id</text>
+    <text x="520" y="385" fill="#7c5cd8" font-size="10">payment → payments._id</text>
+    <text x="520" y="398" fill="#1f2328" font-size="10">plan · planName · price · currency</text>
+    <text x="520" y="411" fill="#1f2328" font-size="10">status · startDate · endDate</text>
+    <text x="520" y="424" fill="#1f2328" font-size="10">autoRenew · duration</text>
+    <text x="520" y="437" fill="#1f2328" font-size="10">usage { interviewsUsed, limit }</text>
+    <text x="520" y="450" fill="#1f2328" font-size="10">features[] · renewalHistory[]</text>
+    <text x="520" y="463" fill="#1f2328" font-size="10">statusHistory[] · cancellationReason</text>
+    <text x="520" y="476" fill="#1f2328" font-size="10">cancelledAt · renewedAt</text>
+    <text x="520" y="507" fill="#57606a" font-size="9">Idx: user+status, endDate, partial unique</text>
+  </g>
+
+  
+  <g id="e-session">
+    <rect x="755" y="30" width="188" height="280" rx="6" fill="#e3f2fd" stroke="#90caf9" stroke-width="1.5"></rect>
+    <rect x="755" y="30" width="188" height="28" rx="6" fill="#0d47a1"></rect>
+    <rect x="755" y="52" width="188" height="6" fill="#0d47a1"></rect>
+    <text x="849" y="49" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">interviewsessions</text>
+    <text x="765" y="76" fill="#0d47a1" font-size="11" font-weight="700">_id</text><text x="835" y="76" fill="#57606a" font-size="10">ObjectId · PK</text>
+    <line x1="755" y1="80" x2="943" y2="80" stroke="#bbdefb" stroke-width="0.8"></line>
+    <text x="765" y="93" fill="#7c5cd8" font-size="10">booking → bookings._id · unique</text>
+    <text x="765" y="106" fill="#7c5cd8" font-size="10">user → users._id</text>
+    <text x="765" y="119" fill="#7c5cd8" font-size="10">interviewer → interviewers._id</text>
+    <text x="765" y="132" fill="#1f2328" font-size="10">roomId · meetingLink · status</text>
+    <text x="765" y="145" fill="#1f2328" font-size="10">meetingProvider (jitsi/zoom/webrtc…)</text>
+    <text x="765" y="158" fill="#1f2328" font-size="10">scheduledStartAt · scheduledEndAt</text>
+    <text x="765" y="171" fill="#1f2328" font-size="10">actualStartAt · actualEndAt</text>
+    <text x="765" y="184" fill="#1f2328" font-size="10">participants[] { user, role, joinedAt… }</text>
+    <text x="765" y="197" fill="#1f2328" font-size="10">codeSnapshots[] { lang, code, savedBy }</text>
+    <text x="765" y="210" fill="#1f2328" font-size="10">chatLog[] { sender, message, type }</text>
+    <text x="765" y="223" fill="#1f2328" font-size="10">recording { url, duration, status… }</text>
+    <text x="765" y="236" fill="#1f2328" font-size="10">technicalEvaluation { scores… }</text>
+    <text x="765" y="249" fill="#1f2328" font-size="10">topicsCovered[] · problemsAttempted[]</text>
+    <text x="765" y="262" fill="#1f2328" font-size="10">abortReason · feedbackReminderSent</text>
+    <text x="765" y="278" fill="#57606a" font-size="9">Idx: user+start, interviewer+start, roomId</text>
+  </g>
+
+  
+  <g id="e-review">
+    <rect x="30" y="620" width="188" height="185" rx="6" fill="#fff9c4" stroke="#fff176" stroke-width="1.5"></rect>
+    <rect x="30" y="620" width="188" height="28" rx="6" fill="#f57f17"></rect>
+    <rect x="30" y="642" width="188" height="6" fill="#f57f17"></rect>
+    <text x="124" y="639" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">reviews</text>
+    <text x="40" y="665" fill="#f57f17" font-size="11" font-weight="700">_id</text><text x="110" y="665" fill="#57606a" font-size="10">ObjectId · PK</text>
+    <line x1="30" y1="669" x2="218" y2="669" stroke="#fff9c4" stroke-width="0.8"></line>
+    <text x="40" y="682" fill="#7c5cd8" font-size="10">user → users._id</text>
+    <text x="40" y="695" fill="#7c5cd8" font-size="10">interviewer → interviewers._id</text>
+    <text x="40" y="708" fill="#7c5cd8" font-size="10">booking → bookings._id · unique</text>
+    <text x="40" y="721" fill="#1f2328" font-size="10">rating (1-5) · comment</text>
+    <text x="40" y="734" fill="#1f2328" font-size="10">aspects { expertise, communication… }</text>
+    <text x="40" y="747" fill="#1f2328" font-size="10">pros[] · cons[] · wouldRecommend</text>
+    <text x="40" y="760" fill="#1f2328" font-size="10">moderationStatus · response{}</text>
+    <text x="40" y="780" fill="#57606a" font-size="9">Idx: booking unique, interviewer+rating</text>
+  </g>
+
+  
+  <g id="e-notification">
+    <rect x="270" y="590" width="188" height="185" rx="6" fill="#fbe9e7" stroke="#ffab91" stroke-width="1.5"></rect>
+    <rect x="270" y="590" width="188" height="28" rx="6" fill="#bf360c"></rect>
+    <rect x="270" y="612" width="188" height="6" fill="#bf360c"></rect>
+    <text x="364" y="609" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">notifications</text>
+    <text x="280" y="635" fill="#bf360c" font-size="11" font-weight="700">_id</text><text x="350" y="635" fill="#57606a" font-size="10">ObjectId · PK</text>
+    <line x1="270" y1="639" x2="458" y2="639" stroke="#fbe9e7" stroke-width="0.8"></line>
+    <text x="280" y="652" fill="#7c5cd8" font-size="10">user → users._id</text>
+    <text x="280" y="665" fill="#1f2328" font-size="10">type (18 types) · title · message</text>
+    <text x="280" y="678" fill="#1f2328" font-size="10">priority · isRead · readAt</text>
+    <text x="280" y="691" fill="#1f2328" font-size="10">data (Mixed payload)</text>
+    <text x="280" y="704" fill="#1f2328" font-size="10">actionUrl · actionText</text>
+    <text x="280" y="717" fill="#1f2328" font-size="10">channels { inApp, email, push, sms }</text>
+    <text x="280" y="730" fill="#1f2328" font-size="10">expiresAt (TTL 90 days)</text>
+    <text x="280" y="757" fill="#57606a" font-size="9">Idx: user+isRead, user+type, TTL expiresAt</text>
+  </g>
+
+  
+  <g id="e-email">
+    <rect x="510" y="590" width="188" height="185" rx="6" fill="#e8eaf6" stroke="#9fa8da" stroke-width="1.5"></rect>
+    <rect x="510" y="590" width="188" height="28" rx="6" fill="#283593"></rect>
+    <rect x="510" y="612" width="188" height="6" fill="#283593"></rect>
+    <text x="604" y="609" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">emailcampaigns</text>
+    <text x="520" y="635" fill="#283593" font-size="11" font-weight="700">_id</text><text x="590" y="635" fill="#57606a" font-size="10">ObjectId · PK</text>
+    <line x1="510" y1="639" x2="698" y2="639" stroke="#e8eaf6" stroke-width="0.8"></line>
+    <text x="520" y="652" fill="#7c5cd8" font-size="10">createdBy → users._id</text>
+    <text x="520" y="665" fill="#1f2328" font-size="10">name · subject · previewText</text>
+    <text x="520" y="678" fill="#1f2328" font-size="10">htmlBody · plainTextBody</text>
+    <text x="520" y="691" fill="#1f2328" font-size="10">targetAudience · customFilter</text>
+    <text x="520" y="704" fill="#1f2328" font-size="10">status · scheduledAt · sentAt</text>
+    <text x="520" y="717" fill="#1f2328" font-size="10">stats { sent, delivered, opens… }</text>
+    <text x="520" y="730" fill="#1f2328" font-size="10">tags[] · openRate · clickRate</text>
+    <text x="520" y="757" fill="#57606a" font-size="9">Idx: status+scheduledAt, createdBy</text>
+  </g>
+
+  
+  <g id="e-testimonial">
+    <rect x="755" y="590" width="188" height="185" rx="6" fill="#f9fbe7" stroke="#dce775" stroke-width="1.5"></rect>
+    <rect x="755" y="590" width="188" height="28" rx="6" fill="#558b2f"></rect>
+    <rect x="755" y="612" width="188" height="6" fill="#558b2f"></rect>
+    <text x="849" y="609" text-anchor="middle" fill="#fff" font-size="12" font-weight="700">testimonials</text>
+    <text x="765" y="635" fill="#558b2f" font-size="11" font-weight="700">_id</text><text x="835" y="635" fill="#57606a" font-size="10">ObjectId · PK</text>
+    <line x1="755" y1="639" x2="943" y2="639" stroke="#f9fbe7" stroke-width="0.8"></line>
+    <text x="765" y="652" fill="#7c5cd8" font-size="10">user → users._id (optional)</text>
+    <text x="765" y="665" fill="#7c5cd8" font-size="10">review → reviews._id (optional)</text>
+    <text x="765" y="678" fill="#7c5cd8" font-size="10">createdBy → users._id</text>
+    <text x="765" y="691" fill="#1f2328" font-size="10">displayName · displayTitle · avatarUrl</text>
+    <text x="765" y="704" fill="#1f2328" font-size="10">content · rating · outcome</text>
+    <text x="765" y="717" fill="#1f2328" font-size="10">isPublished · isFeatured · displayOrder</text>
+    <text x="765" y="730" fill="#1f2328" font-size="10">source · publishedAt</text>
+    <text x="765" y="757" fill="#57606a" font-size="9">Idx: isPublished+isFeatured+displayOrder</text>
+  </g>
+
+  
+  
+
+  
+  <line x1="210" y1="80" x2="270" y2="90" stroke="#57606a" stroke-width="1.4" marker-end="url(#arrowEnd)"></line>
+  <text x="230" y="76" fill="#57606a" font-size="9">1:1</text>
+
+  
+  <line x1="458" y1="90" x2="510" y2="100" stroke="#57606a" stroke-width="1.4" marker-end="url(#arrowEnd)"></line>
+  <text x="464" y="86" fill="#57606a" font-size="9">1:N</text>
+
+  
+  <line x1="605" y1="240" x2="605" y2="280" stroke="#57606a" stroke-width="1.4" marker-end="url(#arrowEnd)"></line>
+  <text x="608" y="265" fill="#57606a" font-size="9">0:1</text>
+
+  
+  <line x1="120" y1="240" x2="120" y2="310" stroke="#57606a" stroke-width="1.4" marker-end="url(#arrowEnd)"></line>
+  <text x="124" y="280" fill="#57606a" font-size="9">1:N</text>
+
+  
+  <line x1="364" y1="260" x2="200" y2="370" stroke="#57606a" stroke-width="1.4" marker-end="url(#arrowEnd)"></line>
+  <text x="280" y="300" fill="#57606a" font-size="9">1:N</text>
+
+  
+  <line x1="218" y1="400" x2="270" y2="390" stroke="#57606a" stroke-width="1.4" marker-end="url(#arrowEnd)"></line>
+  <text x="228" y="388" fill="#57606a" font-size="9">1:1</text>
+
+  
+  <line x1="210" y1="110" x2="364" y2="310" stroke="#57606a" stroke-width="1.4" marker-end="url(#arrowEnd)"></line>
+
+  
+  <line x1="458" y1="398" x2="510" y2="385" stroke="#57606a" stroke-width="1.4" marker-end="url(#arrowEnd)"></line>
+  <text x="462" y="388" fill="#57606a" font-size="9">1:1</text>
+
+  
+  <line x1="695" y1="372" x2="750" y2="372" stroke="#57606a" stroke-width="1.4"></line>
+  <line x1="120" y1="240" x2="605" y2="372" stroke="#57606a" stroke-width="1" opacity="0.4"></line>
+
+  
+  <line x1="218" y1="340" x2="755" y2="100" stroke="#57606a" stroke-width="1.4" marker-end="url(#arrowEnd)"></line>
+  <text x="488" y="210" fill="#57606a" font-size="9">1:1</text>
+
+  
+  <line x1="124" y1="560" x2="124" y2="620" stroke="#57606a" stroke-width="1.4" marker-end="url(#arrowEnd)"></line>
+  <text x="128" y="595" fill="#57606a" font-size="9">0:1</text>
+
+  
+  <line x1="340" y1="260" x2="170" y2="640" stroke="#57606a" stroke-width="1.4" marker-end="url(#arrowEnd)"></line>
+
+  
+  <line x1="210" y1="140" x2="364" y2="590" stroke="#57606a" stroke-width="1.4" marker-end="url(#arrowEnd)"></line>
+  <text x="270" y="440" fill="#57606a" font-size="9">1:N</text>
+
+  
+  <line x1="210" y1="150" x2="604" y2="590" stroke="#57606a" stroke-width="1.4" marker-end="url(#arrowEnd)"></line>
+
+  
+  <line x1="218" y1="708" x2="755" y2="665" stroke="#57606a" stroke-width="1.4" marker-end="url(#arrowEnd)"></line>
+  <text x="490" y="693" fill="#57606a" font-size="9">0:1</text>
+
+  
+  <line x1="210" y1="160" x2="849" y2="590" stroke="#57606a" stroke-width="1" opacity="0.45" marker-end="url(#arrowEnd)"></line>
+
+  
+  <rect x="30" y="790" width="500" height="22" rx="4" fill="#f7f8fa" stroke="#e5e7eb"></rect>
+  <line x1="42" y1="801" x2="66" y2="801" stroke="#57606a" stroke-width="1.4"></line>
+  <text x="70" y="804" fill="#57606a" font-size="10">Required FK</text>
+  <line x1="140" y1="801" x2="164" y2="801" stroke="#57606a" stroke-width="1.4"></line>
+  <text x="168" y="804" fill="#57606a" font-size="10">Optional FK</text>
+  <text x="250" y="804" fill="#7c5cd8" font-size="10" font-weight="600">Purple field = Foreign Key ref</text>
+  <text x="440" y="804" fill="#57606a" font-size="10">Arrow = FK direction</text>
+</svg>
+</div>
+
+
+<h2>Relationships Reference</h2>
+<table class="rel-table">
+  <thead>
+    <tr><th>From Entity</th><th>To Entity</th><th>Cardinality</th><th>Foreign Key / Field</th><th>Notes</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>users</strong></td><td>interviewers</td><td><span class="tag one">1</span> → <span class="tag one">1</span></td><td><code>interviewers.user</code></td><td>One user may have one interviewer profile; unique index enforced</td></tr>
+    <tr><td><strong>users</strong></td><td>bookings</td><td><span class="tag one">1</span> → <span class="tag many">N</span></td><td><code>bookings.user</code></td><td>Candidate who made the booking</td></tr>
+    <tr><td><strong>users</strong></td><td>payments</td><td><span class="tag one">1</span> → <span class="tag many">N</span></td><td><code>payments.user</code></td><td>All payments made by a user</td></tr>
+    <tr><td><strong>users</strong></td><td>subscriptions</td><td><span class="tag one">1</span> → <span class="tag many">N</span></td><td><code>subscriptions.user</code></td><td>Partial unique index: only one active subscription per user</td></tr>
+    <tr><td><strong>users</strong></td><td>notifications</td><td><span class="tag one">1</span> → <span class="tag many">N</span></td><td><code>notifications.user</code></td><td>All notifications for a user; TTL auto-delete after 90 days</td></tr>
+    <tr><td><strong>users</strong></td><td>reviews</td><td><span class="tag one">1</span> → <span class="tag many">N</span></td><td><code>reviews.user</code></td><td>Reviews authored by a candidate</td></tr>
+    <tr><td><strong>users (admin)</strong></td><td>emailcampaigns</td><td><span class="tag one">1</span> → <span class="tag many">N</span></td><td><code>emailcampaigns.createdBy</code></td><td>Only admin-role users create campaigns</td></tr>
+    <tr><td><strong>users</strong></td><td>testimonials</td><td><span class="tag one">1</span> → <span class="tag many">N</span> <span class="tag opt">opt</span></td><td><code>testimonials.user</code></td><td>Optional; testimonials can be anonymous</td></tr>
+    <tr><td><strong>interviewers</strong></td><td>availabilityslots</td><td><span class="tag one">1</span> → <span class="tag many">N</span></td><td><code>availabilityslots.interviewer</code></td><td>Denormalised <code>interviewerUser</code> ref also stored</td></tr>
+    <tr><td><strong>interviewers</strong></td><td>bookings</td><td><span class="tag one">1</span> → <span class="tag many">N</span></td><td><code>bookings.interviewer</code></td><td>Compound unique: interviewer+date+startTime for non-cancelled bookings</td></tr>
+    <tr><td><strong>interviewers</strong></td><td>reviews</td><td><span class="tag one">1</span> → <span class="tag many">N</span></td><td><code>reviews.interviewer</code></td><td>updateRating() recalculates rolling average</td></tr>
+    <tr><td><strong>interviewers</strong></td><td>interviewsessions</td><td><span class="tag one">1</span> → <span class="tag many">N</span></td><td><code>interviewsessions.interviewer</code></td><td>Denormalised for query performance</td></tr>
+    <tr><td><strong>availabilityslots</strong></td><td>bookings</td><td><span class="tag one">1</span> → <span class="tag one">1</span> <span class="tag opt">opt</span></td><td><code>availabilityslots.booking</code></td><td>Slot status transitions: available → booked; Redis lock used during booking</td></tr>
+    <tr><td><strong>bookings</strong></td><td>payments</td><td><span class="tag one">1</span> → <span class="tag one">1</span> <span class="tag opt">opt</span></td><td><code>bookings.payment</code> / <code>payments.booking</code></td><td>Bidirectional; exactly one of booking/subscription must be set on payment</td></tr>
+    <tr><td><strong>bookings</strong></td><td>interviewsessions</td><td><span class="tag one">1</span> → <span class="tag one">1</span> <span class="tag opt">opt</span></td><td><code>interviewsessions.booking</code> (unique)</td><td>Session created on booking confirmation</td></tr>
+    <tr><td><strong>bookings</strong></td><td>reviews</td><td><span class="tag one">1</span> → <span class="tag one">1</span> <span class="tag opt">opt</span></td><td><code>reviews.booking</code> (unique)</td><td>One review per completed booking</td></tr>
+    <tr><td><strong>payments</strong></td><td>subscriptions</td><td><span class="tag one">1</span> → <span class="tag one">1</span> <span class="tag opt">opt</span></td><td><code>subscriptions.payment</code></td><td>Payment that activated the subscription</td></tr>
+    <tr><td><strong>reviews</strong></td><td>testimonials</td><td><span class="tag one">1</span> → <span class="tag one">1</span> <span class="tag opt">opt</span></td><td><code>testimonials.review</code></td><td>Testimonial may be promoted from a review</td></tr>
+  </tbody>
+</table>
+
+
+<h2>Full Schema Reference</h2>
+<div class="cards">
+
+  
+  <div class="card">
+    <div class="card-head c-user"><span>users</span><span class="badge">11 key fields</span></div>
+    <div class="card-body">
+      <table>
+        <thead><tr><th>Field</th><th>Type</th><th>Constraints</th></tr></thead>
+        <tbody>
+          <tr class="pk"><td class="fn">_id</td><td class="ft">ObjectId</td><td class="note">PK, auto</td></tr>
+          <tr><td class="fn">firstName</td><td class="ft">String</td><td class="note">required, trim</td></tr>
+          <tr><td class="fn">lastName</td><td class="ft">String</td><td class="note">required, trim</td></tr>
+          <tr><td class="fn">email</td><td class="ft">String</td><td class="note">required, unique, lowercase</td></tr>
+          <tr><td class="fn">password</td><td class="ft">String</td><td class="note">select:false, bcrypt×12</td></tr>
+          <tr><td class="fn">role</td><td class="ft">String</td><td class="note">enum: user/interviewer/admin</td></tr>
+          <tr><td class="fn">authProvider</td><td class="ft">String</td><td class="note">enum: local/google/github</td></tr>
+          <tr><td class="fn">isEmailVerified</td><td class="ft">Boolean</td><td class="note">default false</td></tr>
+          <tr><td class="fn">isActive</td><td class="ft">Boolean</td><td class="note">default true</td></tr>
+          <tr><td class="fn">preferences</td><td class="ft">Object</td><td class="note">notifications, language, theme</td></tr>
+          <tr><td class="fn">refreshTokens</td><td class="ft">Array</td><td class="note">select:false; {token, device, expiresAt}</td></tr>
+          <tr><td class="fn">loginAttempts</td><td class="ft">Number</td><td class="note">select:false; account lockout</td></tr>
+          <tr><td class="fn">deletedAt</td><td class="ft">Date</td><td class="note">soft-delete timestamp</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  
+  <div class="card">
+    <div class="card-head c-interviewer"><span>interviewers</span><span class="badge">profile + earnings</span></div>
+    <div class="card-body">
+      <table>
+        <thead><tr><th>Field</th><th>Type</th><th>Constraints</th></tr></thead>
+        <tbody>
+          <tr class="pk"><td class="fn">_id</td><td class="ft">ObjectId</td><td class="note">PK</td></tr>
+          <tr class="fkrow"><td class="fn">user</td><td class="ft">ObjectId</td><td class="fk">→ users, unique</td></tr>
+          <tr><td class="fn">expertise</td><td class="ft">String[]</td><td class="note">required, min 1</td></tr>
+          <tr><td class="fn">experience</td><td class="ft">Number</td><td class="note">0–50 years</td></tr>
+          <tr><td class="fn">hourlyRate</td><td class="ft">Number</td><td class="note">0–100000</td></tr>
+          <tr><td class="fn">currency</td><td class="ft">String</td><td class="note">INR/USD/EUR/GBP</td></tr>
+          <tr><td class="fn">availability</td><td class="ft">Array</td><td class="note">{day Mon-Sun, slots[]}</td></tr>
+          <tr><td class="fn">rating</td><td class="ft">Object</td><td class="note">{average 0-5, count}</td></tr>
+          <tr><td class="fn">status</td><td class="ft">String</td><td class="note">pending/active/inactive/suspended/rejected</td></tr>
+          <tr><td class="fn">isVerified</td><td class="ft">Boolean</td><td class="note">doc verification</td></tr>
+          <tr><td class="fn">isApproved</td><td class="ft">Boolean</td><td class="note">admin approval gate</td></tr>
+          <tr><td class="fn">earnings</td><td class="ft">Object</td><td class="note">{total, pending, withdrawn}</td></tr>
+          <tr><td class="fn">bankDetails</td><td class="ft">Object</td><td class="note">select:false; IFSC, account#</td></tr>
+          <tr><td class="fn">certifications</td><td class="ft">Array</td><td class="note">{name, issuer, credentialId, url}</td></tr>
+          <tr class="fkrow"><td class="fn">approvedBy</td><td class="ft">ObjectId</td><td class="fk">→ users (admin)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  
+  <div class="card">
+    <div class="card-head c-slot"><span>availabilityslots</span><span class="badge">time slots</span></div>
+    <div class="card-body">
+      <table>
+        <thead><tr><th>Field</th><th>Type</th><th>Constraints</th></tr></thead>
+        <tbody>
+          <tr class="pk"><td class="fn">_id</td><td class="ft">ObjectId</td><td class="note">PK</td></tr>
+          <tr class="fkrow"><td class="fn">interviewer</td><td class="ft">ObjectId</td><td class="fk">→ interviewers</td></tr>
+          <tr class="fkrow"><td class="fn">interviewerUser</td><td class="ft">ObjectId</td><td class="fk">→ users (denorm)</td></tr>
+          <tr class="fkrow"><td class="fn">booking</td><td class="ft">ObjectId</td><td class="fk">→ bookings, optional</td></tr>
+          <tr><td class="fn">startDateTime</td><td class="ft">Date</td><td class="note">required, UTC</td></tr>
+          <tr><td class="fn">endDateTime</td><td class="ft">Date</td><td class="note">required, UTC; TTL index</td></tr>
+          <tr><td class="fn">duration</td><td class="ft">Number</td><td class="note">15–240 min</td></tr>
+          <tr><td class="fn">status</td><td class="ft">String</td><td class="note">available/booked/blocked/expired</td></tr>
+          <tr><td class="fn">interviewTypes</td><td class="ft">String[]</td><td class="note">enum array</td></tr>
+          <tr><td class="fn">priceOverride</td><td class="ft">Number</td><td class="note">optional override</td></tr>
+          <tr><td class="fn">isRecurring</td><td class="ft">Boolean</td><td class="note">default true</td></tr>
+          <tr><td class="fn">sourceTemplate</td><td class="ft">Object</td><td class="note">{day, startTime HH:MM}</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  
+  <div class="card">
+    <div class="card-head c-booking"><span>bookings</span><span class="badge">core transaction</span></div>
+    <div class="card-body">
+      <table>
+        <thead><tr><th>Field</th><th>Type</th><th>Constraints</th></tr></thead>
+        <tbody>
+          <tr class="pk"><td class="fn">_id</td><td class="ft">ObjectId</td><td class="note">PK</td></tr>
+          <tr class="fkrow"><td class="fn">user</td><td class="ft">ObjectId</td><td class="fk">→ users</td></tr>
+          <tr class="fkrow"><td class="fn">interviewer</td><td class="ft">ObjectId</td><td class="fk">→ interviewers</td></tr>
+          <tr class="fkrow"><td class="fn">availabilitySlot</td><td class="ft">ObjectId</td><td class="fk">→ availabilityslots</td></tr>
+          <tr class="fkrow"><td class="fn">interviewSession</td><td class="ft">ObjectId</td><td class="fk">→ interviewsessions</td></tr>
+          <tr class="fkrow"><td class="fn">payment</td><td class="ft">ObjectId</td><td class="fk">→ payments</td></tr>
+          <tr><td class="fn">scheduledDate</td><td class="ft">Date</td><td class="note">required</td></tr>
+          <tr><td class="fn">startTime / endTime</td><td class="ft">String</td><td class="note">HH:MM format</td></tr>
+          <tr><td class="fn">duration</td><td class="ft">Number</td><td class="note">15–240 min, default 60</td></tr>
+          <tr><td class="fn">status</td><td class="ft">String</td><td class="note">pending/confirmed/in-progress/completed/cancelled/no-show</td></tr>
+          <tr><td class="fn">interviewType</td><td class="ft">String</td><td class="note">enum</td></tr>
+          <tr><td class="fn">feedback</td><td class="ft">Object</td><td class="note">{rating, comment, strengths[], improvements[]}</td></tr>
+          <tr><td class="fn">interviewerFeedback</td><td class="ft">Object</td><td class="note">{technicalSkills, communication, hiringRec…}</td></tr>
+          <tr><td class="fn">rescheduleHistory</td><td class="ft">Array</td><td class="note">{previousDate, rescheduledBy, reason}</td></tr>
+          <tr><td class="fn">reminderSent</td><td class="ft">Object</td><td class="note">{oneDay, oneHour} booleans</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  
+  <div class="card">
+    <div class="card-head c-payment"><span>payments</span><span class="badge">Razorpay</span></div>
+    <div class="card-body">
+      <table>
+        <thead><tr><th>Field</th><th>Type</th><th>Constraints</th></tr></thead>
+        <tbody>
+          <tr class="pk"><td class="fn">_id</td><td class="ft">ObjectId</td><td class="note">PK</td></tr>
+          <tr class="fkrow"><td class="fn">user</td><td class="ft">ObjectId</td><td class="fk">→ users</td></tr>
+          <tr class="fkrow"><td class="fn">booking</td><td class="ft">ObjectId</td><td class="fk">→ bookings (mutex)</td></tr>
+          <tr class="fkrow"><td class="fn">subscription</td><td class="ft">ObjectId</td><td class="fk">→ subscriptions (mutex)</td></tr>
+          <tr><td class="fn">amount</td><td class="ft">Number</td><td class="note">required, min 0</td></tr>
+          <tr><td class="fn">amountInSmallestUnit</td><td class="ft">Number</td><td class="note">paise for INR</td></tr>
+          <tr><td class="fn">currency</td><td class="ft">String</td><td class="note">default INR</td></tr>
+          <tr><td class="fn">status</td><td class="ft">String</td><td class="note">pending/processing/completed/failed/refunded/cancelled</td></tr>
+          <tr><td class="fn">paymentMethod</td><td class="ft">String</td><td class="note">razorpay/card/upi/netbanking/wallet</td></tr>
+          <tr><td class="fn">razorpayOrderId</td><td class="ft">String</td><td class="note">unique sparse</td></tr>
+          <tr><td class="fn">razorpayPaymentId</td><td class="ft">String</td><td class="note">unique sparse</td></tr>
+          <tr><td class="fn">razorpaySignature</td><td class="ft">String</td><td class="note">select:false</td></tr>
+          <tr><td class="fn">refund</td><td class="ft">Object</td><td class="note">{amount, reason, refundId, status, dates}</td></tr>
+          <tr><td class="fn">taxAmount</td><td class="ft">Number</td><td class="note">taxPercentage 0-100</td></tr>
+          <tr><td class="fn">invoiceNumber</td><td class="ft">String</td><td class="note">unique sparse</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  
+  <div class="card">
+    <div class="card-head c-subscription"><span>subscriptions</span><span class="badge">plans</span></div>
+    <div class="card-body">
+      <table>
+        <thead><tr><th>Field</th><th>Type</th><th>Constraints</th></tr></thead>
+        <tbody>
+          <tr class="pk"><td class="fn">_id</td><td class="ft">ObjectId</td><td class="note">PK</td></tr>
+          <tr class="fkrow"><td class="fn">user</td><td class="ft">ObjectId</td><td class="fk">→ users</td></tr>
+          <tr class="fkrow"><td class="fn">payment</td><td class="ft">ObjectId</td><td class="fk">→ payments</td></tr>
+          <tr><td class="fn">plan</td><td class="ft">String</td><td class="note">enum: basic/pro/premium</td></tr>
+          <tr><td class="fn">status</td><td class="ft">String</td><td class="note">active/expired/cancelled/suspended/pending</td></tr>
+          <tr><td class="fn">startDate / endDate</td><td class="ft">Date</td><td class="note">required</td></tr>
+          <tr><td class="fn">autoRenew</td><td class="ft">Boolean</td><td class="note">default false</td></tr>
+          <tr><td class="fn">duration</td><td class="ft">Number</td><td class="note">min 1 day, default 30</td></tr>
+          <tr><td class="fn">features</td><td class="ft">String[]</td><td class="note">plan feature flags</td></tr>
+          <tr><td class="fn">usage</td><td class="ft">Object</td><td class="note">{interviewsUsed, interviewsLimit}</td></tr>
+          <tr><td class="fn">renewalHistory</td><td class="ft">Array</td><td class="note">{renewedAt, payment, previousEndDate}</td></tr>
+          <tr><td class="fn">statusHistory</td><td class="ft">Array</td><td class="note">{from, to, changedAt, changedBy, reason}</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  
+  <div class="card">
+    <div class="card-head c-session"><span>interviewsessions</span><span class="badge">live session</span></div>
+    <div class="card-body">
+      <table>
+        <thead><tr><th>Field</th><th>Type</th><th>Constraints</th></tr></thead>
+        <tbody>
+          <tr class="pk"><td class="fn">_id</td><td class="ft">ObjectId</td><td class="note">PK</td></tr>
+          <tr class="fkrow"><td class="fn">booking</td><td class="ft">ObjectId</td><td class="fk">→ bookings, unique</td></tr>
+          <tr class="fkrow"><td class="fn">user</td><td class="ft">ObjectId</td><td class="fk">→ users</td></tr>
+          <tr class="fkrow"><td class="fn">interviewer</td><td class="ft">ObjectId</td><td class="fk">→ interviewers</td></tr>
+          <tr><td class="fn">roomId</td><td class="ft">String</td><td class="note">unique sparse</td></tr>
+          <tr><td class="fn">status</td><td class="ft">String</td><td class="note">scheduled/waiting/in-progress/ended/no-show/aborted</td></tr>
+          <tr><td class="fn">meetingProvider</td><td class="ft">String</td><td class="note">jitsi/zoom/google_meet/webrtc/other</td></tr>
+          <tr><td class="fn">participants</td><td class="ft">Array</td><td class="note">{user, role, joinedAt, leftAt, wasPresent}</td></tr>
+          <tr><td class="fn">codeSnapshots</td><td class="ft">Array</td><td class="note">{language, code max 100k, savedBy, label}</td></tr>
+          <tr><td class="fn">chatLog</td><td class="ft">Array</td><td class="note">{sender, message, type: text/code/system}</td></tr>
+          <tr><td class="fn">recording</td><td class="ft">Object</td><td class="note">{url, duration, provider, status}</td></tr>
+          <tr><td class="fn">technicalEvaluation</td><td class="ft">Object</td><td class="note">{scores 1-10, hiringRecommendation}</td></tr>
+          <tr><td class="fn">problemsAttempted</td><td class="ft">Array</td><td class="note">{title, difficulty, solved, timeSpent}</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  
+  <div class="card">
+    <div class="card-head c-review"><span>reviews</span><span class="badge">moderated</span></div>
+    <div class="card-body">
+      <table>
+        <thead><tr><th>Field</th><th>Type</th><th>Constraints</th></tr></thead>
+        <tbody>
+          <tr class="pk"><td class="fn">_id</td><td class="ft">ObjectId</td><td class="note">PK</td></tr>
+          <tr class="fkrow"><td class="fn">user</td><td class="ft">ObjectId</td><td class="fk">→ users</td></tr>
+          <tr class="fkrow"><td class="fn">interviewer</td><td class="ft">ObjectId</td><td class="fk">→ interviewers</td></tr>
+          <tr class="fkrow"><td class="fn">booking</td><td class="ft">ObjectId</td><td class="fk">→ bookings, unique idx</td></tr>
+          <tr><td class="fn">rating</td><td class="ft">Number</td><td class="note">1–5, required</td></tr>
+          <tr><td class="fn">comment</td><td class="ft">String</td><td class="note">10–1000 chars, fulltext idx</td></tr>
+          <tr><td class="fn">aspects</td><td class="ft">Object</td><td class="note">{expertise, communication, punctuality, helpfulness}</td></tr>
+          <tr><td class="fn">pros / cons</td><td class="ft">String[]</td><td class="note">max 200 chars each</td></tr>
+          <tr><td class="fn">wouldRecommend</td><td class="ft">Boolean</td><td class="note">default true</td></tr>
+          <tr><td class="fn">moderationStatus</td><td class="ft">String</td><td class="note">pending/approved/rejected/flagged</td></tr>
+          <tr><td class="fn">helpfulCount</td><td class="ft">Number</td><td class="note">denorm count</td></tr>
+          <tr><td class="fn">response</td><td class="ft">Object</td><td class="note">{comment, respondedAt} interviewer reply</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  
+  <div class="card">
+    <div class="card-head c-notification"><span>notifications</span><span class="badge">multi-channel</span></div>
+    <div class="card-body">
+      <table>
+        <thead><tr><th>Field</th><th>Type</th><th>Constraints</th></tr></thead>
+        <tbody>
+          <tr class="pk"><td class="fn">_id</td><td class="ft">ObjectId</td><td class="note">PK</td></tr>
+          <tr class="fkrow"><td class="fn">user</td><td class="ft">ObjectId</td><td class="fk">→ users</td></tr>
+          <tr><td class="fn">type</td><td class="ft">String</td><td class="note">18 event types (booking_*, payment_*, subscription_*…)</td></tr>
+          <tr><td class="fn">title</td><td class="ft">String</td><td class="note">max 100</td></tr>
+          <tr><td class="fn">message</td><td class="ft">String</td><td class="note">max 500</td></tr>
+          <tr><td class="fn">priority</td><td class="ft">String</td><td class="note">low/medium/high/urgent</td></tr>
+          <tr><td class="fn">isRead / readAt</td><td class="ft">Boolean/Date</td><td class="note">read tracking</td></tr>
+          <tr><td class="fn">data</td><td class="ft">Mixed</td><td class="note">arbitrary event payload</td></tr>
+          <tr><td class="fn">channels</td><td class="ft">Object</td><td class="note">{inApp, email, push, sms} each {sent, sentAt}</td></tr>
+          <tr><td class="fn">expiresAt</td><td class="ft">Date</td><td class="note">TTL index, default 90 days</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  
+  <div class="card">
+    <div class="card-head c-email"><span>emailcampaigns</span><span class="badge">admin</span></div>
+    <div class="card-body">
+      <table>
+        <thead><tr><th>Field</th><th>Type</th><th>Constraints</th></tr></thead>
+        <tbody>
+          <tr class="pk"><td class="fn">_id</td><td class="ft">ObjectId</td><td class="note">PK</td></tr>
+          <tr class="fkrow"><td class="fn">createdBy</td><td class="ft">ObjectId</td><td class="fk">→ users (admin)</td></tr>
+          <tr><td class="fn">name</td><td class="ft">String</td><td class="note">max 150</td></tr>
+          <tr><td class="fn">subject</td><td class="ft">String</td><td class="note">max 200</td></tr>
+          <tr><td class="fn">htmlBody</td><td class="ft">String</td><td class="note">required</td></tr>
+          <tr><td class="fn">targetAudience</td><td class="ft">String</td><td class="note">all/users/interviewers/pro_subscribers/inactive_users/custom</td></tr>
+          <tr><td class="fn">customFilter</td><td class="ft">Mixed</td><td class="note">MongoDB query for custom segment</td></tr>
+          <tr><td class="fn">status</td><td class="ft">String</td><td class="note">draft/scheduled/sending/sent/paused/cancelled</td></tr>
+          <tr><td class="fn">stats</td><td class="ft">Object</td><td class="note">{recipientCount, sentCount, openCount, clickCount, bounceCount…}</td></tr>
+          <tr><td class="fn">tags</td><td class="ft">String[]</td><td class="note">free-form labels</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  
+  <div class="card">
+    <div class="card-head c-testimonial"><span>testimonials</span><span class="badge">marketing</span></div>
+    <div class="card-body">
+      <table>
+        <thead><tr><th>Field</th><th>Type</th><th>Constraints</th></tr></thead>
+        <tbody>
+          <tr class="pk"><td class="fn">_id</td><td class="ft">ObjectId</td><td class="note">PK</td></tr>
+          <tr class="fkrow"><td class="fn">user</td><td class="ft">ObjectId</td><td class="fk">→ users, optional sparse</td></tr>
+          <tr class="fkrow"><td class="fn">review</td><td class="ft">ObjectId</td><td class="fk">→ reviews, optional</td></tr>
+          <tr class="fkrow"><td class="fn">createdBy</td><td class="ft">ObjectId</td><td class="fk">→ users (admin)</td></tr>
+          <tr><td class="fn">displayName</td><td class="ft">String</td><td class="note">required</td></tr>
+          <tr><td class="fn">displayTitle</td><td class="ft">String</td><td class="note">job title / company</td></tr>
+          <tr><td class="fn">content</td><td class="ft">String</td><td class="note">20–600 chars</td></tr>
+          <tr><td class="fn">rating</td><td class="ft">Number</td><td class="note">1–5, default 5</td></tr>
+          <tr><td class="fn">outcome</td><td class="ft">String</td><td class="note">max 150, e.g. "Got offer at Google"</td></tr>
+          <tr><td class="fn">isPublished / isFeatured</td><td class="ft">Boolean</td><td class="note">default false; compound index</td></tr>
+          <tr><td class="fn">displayOrder</td><td class="ft">Number</td><td class="note">default 0, sort key</td></tr>
+          <tr><td class="fn">source</td><td class="ft">String</td><td class="note">organic/imported/admin_created</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+
+<h2>Key Indexes &amp; Performance Notes</h2>
+<div class="idx-grid">
+  <div class="idx-card">
+    <div class="idx-title">users</div>
+    <div class="idx-item">{ email } <span>unique</span></div>
+    <div class="idx-item">{ role, isActive } <span>compound</span></div>
+    <div class="idx-item">{ googleId }, { githubId } <span>sparse</span></div>
+    <div class="idx-item">{ firstName, lastName, bio } <span>fulltext</span></div>
+    <div class="idx-item">{ lockUntil } <span>account lockout TTL</span></div>
+  </div>
+  <div class="idx-card">
+    <div class="idx-title">interviewers</div>
+    <div class="idx-item">{ expertise } <span>multikey</span></div>
+    <div class="idx-item">{ "rating.average" } <span>sort/filter</span></div>
+    <div class="idx-item">{ hourlyRate }, { experience }</div>
+    <div class="idx-item">{ isApproved, status } <span>compound</span></div>
+    <div class="idx-item">{ expertise, "rating.average" } <span>search optimisation</span></div>
+    <div class="idx-item">{ bio, expertise, company, position } <span>fulltext</span></div>
+  </div>
+  <div class="idx-card">
+    <div class="idx-title">availabilityslots</div>
+    <div class="idx-item">{ interviewer, startDateTime, status } <span>compound</span></div>
+    <div class="idx-item">{ interviewer, startDateTime } <span>unique</span></div>
+    <div class="idx-item">{ status, startDateTime }</div>
+    <div class="idx-item">{ endDateTime } <span>TTL – auto expire past slots</span></div>
+    <div class="idx-item">{ interviewerUser, startDateTime } <span>denorm lookup</span></div>
+  </div>
+  <div class="idx-card">
+    <div class="idx-title">bookings</div>
+    <div class="idx-item">{ user, scheduledDate }</div>
+    <div class="idx-item">{ interviewer, scheduledDate }</div>
+    <div class="idx-item">{ status, scheduledDate }</div>
+    <div class="idx-item">{ interviewer, scheduledDate, startTime } <span>unique partial (non-cancelled)</span></div>
+    <div class="idx-item">{ payment }, { availabilitySlot }, { interviewSession }</div>
+  </div>
+  <div class="idx-card">
+    <div class="idx-title">payments</div>
+    <div class="idx-item">{ user, createdAt }</div>
+    <div class="idx-item">{ user, status }</div>
+    <div class="idx-item">{ razorpayOrderId } <span>unique sparse</span></div>
+    <div class="idx-item">{ razorpayPaymentId } <span>unique sparse</span></div>
+    <div class="idx-item">{ transactionId }, { invoiceNumber } <span>unique sparse</span></div>
+    <div class="idx-item">{ currency, status, paidAt } <span>reporting</span></div>
+  </div>
+  <div class="idx-card">
+    <div class="idx-title">subscriptions</div>
+    <div class="idx-item">{ user, status }</div>
+    <div class="idx-item">{ user } <span>partial unique (status=active)</span></div>
+    <div class="idx-item">{ endDate } <span>renewal job scan</span></div>
+    <div class="idx-item">{ autoRenew, status, endDate } <span>cron query</span></div>
+    <div class="idx-item">{ plan, status } <span>analytics</span></div>
+  </div>
+  <div class="idx-card">
+    <div class="idx-title">interviewsessions</div>
+    <div class="idx-item">{ user, scheduledStartAt }</div>
+    <div class="idx-item">{ interviewer, scheduledStartAt }</div>
+    <div class="idx-item">{ status, scheduledStartAt }</div>
+    <div class="idx-item">{ booking } <span>unique</span></div>
+    <div class="idx-item">{ status, feedbackReminderSent, actualEndAt } <span>post-session job</span></div>
+  </div>
+  <div class="idx-card">
+    <div class="idx-title">notifications</div>
+    <div class="idx-item">{ user, createdAt }</div>
+    <div class="idx-item">{ user, isRead }</div>
+    <div class="idx-item">{ user, type, isRead }</div>
+    <div class="idx-item">{ user, priority, isRead }</div>
+    <div class="idx-item">{ expiresAt } <span>TTL – 90 day auto-delete</span></div>
+  </div>
+  <div class="idx-card">
+    <div class="idx-title">reviews</div>
+    <div class="idx-item">{ booking } <span>unique</span></div>
+    <div class="idx-item">{ interviewer, createdAt }</div>
+    <div class="idx-item">{ interviewer, isPublished, rating } <span>profile display</span></div>
+    <div class="idx-item">{ moderationStatus }</div>
+    <div class="idx-item">{ comment } <span>fulltext</span></div>
+  </div>
+  <div class="idx-card">
+    <div class="idx-title">emailcampaigns / testimonials</div>
+    <div class="idx-item">{ status, scheduledAt } <span>scheduler query</span></div>
+    <div class="idx-item">{ createdBy, createdAt }</div>
+    <div class="idx-item">{ isPublished, isFeatured, displayOrder } <span>marketing sort</span></div>
+    <div class="idx-item">{ source, isPublished }</div>
+  </div>
+</div>
+
+
+<h2>Booking &amp; Payment Lifecycle</h2>
+<div class="erd-wrap">
+<svg width="1000" height="120" xmlns="http://www.w3.org/2000/svg" style="display:block">
+  <defs>
+    <marker id="arr2">
+      <path d="M0,0 L0,6 L8,3 z" fill="#3b82d4"></path>
+    </marker>
+  </defs>
+  
+  <rect x="10" y="35" width="110" height="40" rx="5" fill="#e8f4fd" stroke="#90caf9"></rect>
+  <text x="65" y="53" text-anchor="middle" font-size="11" fill="#1565c0" font-weight="600">Candidate</text>
+  <text x="65" y="66" text-anchor="middle" font-size="10" fill="#57606a">selects slot</text>
+
+  <rect x="150" y="35" width="110" height="40" rx="5" fill="#fce4ec" stroke="#f48fb1"></rect>
+  <text x="205" y="53" text-anchor="middle" font-size="11" fill="#880e4f" font-weight="600">AvailabilitySlot</text>
+  <text x="205" y="66" text-anchor="middle" font-size="10" fill="#57606a">Redis lock → booked</text>
+
+  <rect x="290" y="35" width="110" height="40" rx="5" fill="#fff3e0" stroke="#ffcc80"></rect>
+  <text x="345" y="53" text-anchor="middle" font-size="11" fill="#e65100" font-weight="600">Booking</text>
+  <text x="345" y="66" text-anchor="middle" font-size="10" fill="#57606a">status: pending</text>
+
+  <rect x="430" y="35" width="110" height="40" rx="5" fill="#e0f2f1" stroke="#80cbc4"></rect>
+  <text x="485" y="53" text-anchor="middle" font-size="11" fill="#00695c" font-weight="600">Payment</text>
+  <text x="485" y="66" text-anchor="middle" font-size="10" fill="#57606a">Razorpay order</text>
+
+  <rect x="570" y="35" width="110" height="40" rx="5" fill="#e0f2f1" stroke="#80cbc4"></rect>
+  <text x="625" y="53" text-anchor="middle" font-size="11" fill="#00695c" font-weight="600">Payment</text>
+  <text x="625" y="66" text-anchor="middle" font-size="10" fill="#57606a">completed</text>
+
+  <rect x="710" y="35" width="110" height="40" rx="5" fill="#fff3e0" stroke="#ffcc80"></rect>
+  <text x="765" y="53" text-anchor="middle" font-size="11" fill="#e65100" font-weight="600">Booking</text>
+  <text x="765" y="66" text-anchor="middle" font-size="10" fill="#57606a">confirmed</text>
+
+  <rect x="850" y="35" width="120" height="40" rx="5" fill="#e3f2fd" stroke="#90caf9"></rect>
+  <text x="910" y="53" text-anchor="middle" font-size="11" fill="#0d47a1" font-weight="600">InterviewSession</text>
+  <text x="910" y="66" text-anchor="middle" font-size="10" fill="#57606a">created → live</text>
+
+  
+  <line x1="120" y1="55" x2="148" y2="55" stroke="#3b82d4" stroke-width="1.5" marker-end="url(#arr2)"></line>
+  <line x1="260" y1="55" x2="288" y2="55" stroke="#3b82d4" stroke-width="1.5" marker-end="url(#arr2)"></line>
+  <line x1="400" y1="55" x2="428" y2="55" stroke="#3b82d4" stroke-width="1.5" marker-end="url(#arr2)"></line>
+  <line x1="540" y1="55" x2="568" y2="55" stroke="#3b82d4" stroke-width="1.5" marker-end="url(#arr2)"></line>
+  <line x1="680" y1="55" x2="708" y2="55" stroke="#3b82d4" stroke-width="1.5" marker-end="url(#arr2)"></line>
+  <line x1="820" y1="55" x2="848" y2="55" stroke="#3b82d4" stroke-width="1.5" marker-end="url(#arr2)"></line>
+
+  <text x="134" y="30" text-anchor="middle" fill="#57606a" font-size="9">1</text>
+  <text x="274" y="30" text-anchor="middle" fill="#57606a" font-size="9">2</text>
+  <text x="414" y="30" text-anchor="middle" fill="#57606a" font-size="9">3</text>
+  <text x="554" y="30" text-anchor="middle" fill="#57606a" font-size="9">4 webhook</text>
+  <text x="694" y="30" text-anchor="middle" fill="#57606a" font-size="9">5</text>
+  <text x="834" y="30" text-anchor="middle" fill="#57606a" font-size="9">6</text>
+</svg>
+</div>
+
+
+<h2>Design Decisions &amp; Constraints</h2>
+<table class="rel-table">
+  <thead><tr><th>Decision</th><th>Detail</th></tr></thead>
+  <tbody>
+    <tr><td><strong>MongoDB document store</strong></td><td>All collections use Mongoose schemas. Embedded sub-documents (participants, codeSnapshots, chatLog) avoid expensive joins for session data accessed together.</td></tr>
+    <tr><td><strong>Denormalisation</strong></td><td><code>interviewerUser</code> on AvailabilitySlot and <code>interviewer</code> on InterviewSession are denormalised ObjectId refs to avoid deep-chain populate in hot read paths.</td></tr>
+    <tr><td><strong>Redis distributed locks</strong></td><td>Slot booking uses Redis locks (<code>redisLockService</code>) to prevent double-booking under concurrent requests before the MongoDB write.</td></tr>
+    <tr><td><strong>Partial unique index on subscriptions</strong></td><td>Only one <em>active</em> subscription per user is enforced at the DB level via a partial filter index, allowing historical records.</td></tr>
+    <tr><td><strong>Mutex on payments</strong></td><td>Exactly one of <code>booking</code> or <code>subscription</code> must be set on each payment document — enforced at application layer in <code>paymentService</code>.</td></tr>
+    <tr><td><strong>TTL indexes</strong></td><td>Notifications auto-expire after 90 days; AvailabilitySlot past entries expire via TTL on <code>endDateTime</code>; password-reset and email-verification tokens also have TTL fields.</td></tr>
+    <tr><td><strong>Soft delete on users</strong></td><td><code>deletedAt</code> field enables GDPR-compliant soft deletion; <code>isDeleted</code> virtual computed from it.</td></tr>
+    <tr><td><strong>select:false sensitive fields</strong></td><td>password, refreshTokens, loginAttempts, bankDetails, razorpaySignature, and PII sub-fields are excluded from default queries.</td></tr>
+    <tr><td><strong>Rating denorm on Interviewer</strong></td><td><code>rating.average</code> and <code>rating.count</code> are maintained by <code>updateRating()</code> method on every new review to avoid aggregation on every profile load.</td></tr>
+    <tr><td><strong>Compound unique on bookings</strong></td><td>Interviewer + scheduledDate + startTime is unique with a partial filter excluding cancelled/no-show statuses, preventing double-booking while allowing re-booking after cancellation.</td></tr>
+  </tbody>
+</table>
+
+<footer>Made with IBM Bob</footer>
+</div>
+</body>
+</html>
