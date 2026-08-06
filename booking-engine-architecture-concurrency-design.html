@@ -1,0 +1,161 @@
+
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Booking Engine Architecture</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,"Segoe UI",system-ui,sans-serif;font-size:14px;line-height:1.65;color:#1f2328;background:#fff}
+  .wrap{max-width:760px;margin:0 auto;padding:40px 24px}
+  h1{font-size:22px;font-weight:700;letter-spacing:-.4px;margin-bottom:4px}
+  .sub{color:#57606a;font-size:13px;margin-bottom:32px}
+  h2{font-size:14px;font-weight:600;letter-spacing:.3px;text-transform:uppercase;color:#57606a;margin:28px 0 10px;border-bottom:1px solid #e5e7eb;padding-bottom:6px}
+  .pass{display:inline-block;background:#d1fae5;color:#065f46;font-size:12px;font-weight:600;padding:3px 10px;border-radius:20px;margin-bottom:20px}
+  /* Flow diagram */
+  .flow{display:flex;align-items:stretch;gap:0;flex-wrap:wrap;margin:12px 0}
+  .step{flex:1;min-width:120px;border:1px solid #e5e7eb;padding:10px 12px;font-size:12px;position:relative}
+  .step:not(:last-child)::after{content:"→";position:absolute;right:-12px;top:50%;transform:translateY(-50%);color:#3b82d4;font-size:16px;z-index:1}
+  .step:first-child{border-radius:8px 0 0 8px}
+  .step:last-child{border-radius:0 8px 8px 0}
+  .step-num{display:block;font-size:10px;font-weight:700;color:#3b82d4;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
+  .step-title{font-weight:600;color:#1f2328}
+  .step-detail{color:#57606a;font-size:11px;margin-top:2px}
+  .step.lock{background:#f0f4ff}
+  .step.db{background:#f0fdf4}
+  .step.pay{background:#fefce8}
+  .step.confirm{background:#f0fdf4}
+  /* Files table */
+  table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:4px}
+  th{text-align:left;padding:6px 10px;background:#f7f8fa;color:#57606a;font-weight:500;font-size:11px;text-transform:uppercase;border:1px solid #e5e7eb}
+  td{padding:7px 10px;border:1px solid #e5e7eb;vertical-align:top}
+  td:first-child{width:42%;font-family:"SF Mono","Fira Code",monospace;font-size:12px;color:#3b82d4}
+  /* Tests */
+  .tests{list-style:none;font-size:13px;display:grid;grid-template-columns:1fr 1fr;gap:4px}
+  .tests li::before{content:"✓ ";color:#22c55e;font-weight:700}
+  .tests li{background:#f7f8fa;padding:4px 8px;border-radius:6px;color:#1f2328}
+  /* Safety callout */
+  .callout{border-left:3px solid #3b82d4;background:#f0f4ff;padding:12px 14px;border-radius:0 8px 8px 0;margin:12px 0}
+  .callout strong{color:#1f2328}
+  .callout p{font-size:13px;color:#57606a;margin-top:4px}
+  /* API table badge */
+  .method{display:inline-block;font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px;margin-right:4px;font-family:monospace}
+  .get{background:#dbeafe;color:#1e40af}
+  .post{background:#dcfce7;color:#166534}
+  .del{background:#fee2e2;color:#991b1b}
+  footer{margin-top:48px;padding-top:16px;border-top:1px solid #e5e7eb;text-align:center;color:#57606a;font-size:12px}
+  @media(max-width:580px){.flow{flex-direction:column}.step:not(:last-child)::after{display:none}.step{border-radius:0}.step:first-child{border-radius:8px 8px 0 0}.step:last-child{border-radius:0 0 8px 8px}.tests{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Booking Engine — Architecture</h1>
+  <p class="sub">Redis Distributed Locking · MongoDB Transactions · Razorpay Integration</p>
+  <span class="pass">✓ 23/23 tests passing</span>
+
+  <h2>Booking Lifecycle — Hold → Pay → Confirm</h2>
+  <div class="flow">
+    <div class="step">
+      <span class="step-num">Step 1</span>
+      <span class="step-title">Browse</span>
+      <div class="step-detail">GET /availability/:id<br />Slots cached 60s in Redis with live "held" status</div>
+    </div>
+    <div class="step lock">
+      <span class="step-num">Step 2</span>
+      <span class="step-title">Hold Slot</span>
+      <div class="step-detail">Acquire Redis lock (SET NX PX 600s)<br />Re-check status inside lock<br />Create pending Booking</div>
+    </div>
+    <div class="step pay">
+      <span class="step-num">Step 3</span>
+      <span class="step-title">Payment</span>
+      <div class="step-detail">Razorpay order created<br />Client opens payment modal<br />10-min window</div>
+    </div>
+    <div class="step confirm">
+      <span class="step-num">Step 4</span>
+      <span class="step-title">Confirm</span>
+      <div class="step-detail">Verify HMAC signature<br />Mongoose transaction:<br />slot → booked, booking → confirmed</div>
+    </div>
+    <div class="step db">
+      <span class="step-num">Step 5</span>
+      <span class="step-title">Cleanup</span>
+      <div class="step-detail">Release Redis lock<br />Clear hold record<br />Invalidate cache</div>
+    </div>
+  </div>
+
+  <h2>Concurrency Safety — Two Layers</h2>
+  <div class="callout">
+    <strong>Layer 1 — Redis distributed lock (primary guard)</strong>
+    <p>SET NX PX acquires the lock atomically. Concurrent requests that fail to acquire after <code>retryCount</code> attempts receive HTTP 409. Lua script on release ensures only the original holder can free the lock — prevents a late release from evicting a lock re-acquired by another request.</p>
+  </div>
+  <div class="callout" style="border-left-color:#22c55e;background:#f0fdf4">
+    <strong>Layer 2 — MongoDB unique partial index (safety net)</strong>
+    <p>Index on <code>(interviewer, scheduledDate, startTime)</code> with partial filter on active statuses. Even if the Redis lock is somehow bypassed, the DB write fails with E11000 and the caller receives 409.</p>
+  </div>
+
+  <h2>New Files</h2>
+  <table>
+    <tr><th>File</th><th>Responsibility</th></tr>
+    <tr><td>services/redisLockService.js</td><td>Distributed lock: acquire (SET NX PX + jitter retry), atomic Lua release, hold CRUD, extendLock</td></tr>
+    <tr><td>services/bookingService.js</td><td>Full booking lifecycle: getAvailability (Redis cache), holdSlot, confirmBooking (Mongoose tx), releaseHold, cancelBooking, rescheduleBooking, generateSlotsFromTemplate</td></tr>
+    <tr><td>services/bookingCleanupJob.js</td><td>CronJob every 5 min: expire past slots, cancel stale pending bookings &gt;10 min old, clear orphaned Redis holds</td></tr>
+    <tr><td>controllers/bookingController.js</td><td>Express handlers — thin layer, delegates to bookingService</td></tr>
+    <tr><td>utils/bookingValidation.js</td><td>Joi schemas for all booking endpoints (objectId, interviewType, ISO dates)</td></tr>
+    <tr><td>routes/bookingRoutes.js</td><td>All routes wired with auth guards and validators</td></tr>
+    <tr><td>tests/bookingService.concurrent.test.js</td><td>23 tests: lock acquire/release/Lua, concurrent holdSlot, hold expiry, cleanup job (ioredis-mock)</td></tr>
+  </table>
+
+  <h2>API Surface</h2>
+  <table>
+    <tr><th>Method + Path</th><th>Auth</th><th>Description</th></tr>
+    <tr><td><span class="method get">GET</span>/availability/:id?from=&amp;to=</td><td>Public</td><td>Available slots (Redis cached, hold status enriched)</td></tr>
+    <tr><td><span class="method post">POST</span>/availability/:id/generate</td><td>Admin</td><td>Materialise slots from weekly template</td></tr>
+    <tr><td><span class="method post">POST</span>/bookings/hold</td><td>User</td><td>Acquire lock, create pending booking, return Razorpay order</td></tr>
+    <tr><td><span class="method post">POST</span>/bookings/confirm</td><td>User</td><td>Verify sig, Mongoose transaction, confirm booking</td></tr>
+    <tr><td><span class="method del">DEL</span>/bookings/hold/:slotId</td><td>User</td><td>Release hold before payment</td></tr>
+    <tr><td><span class="method post">POST</span>/bookings/:id/cancel</td><td>User/Admin</td><td>Cancel + auto-refund</td></tr>
+    <tr><td><span class="method post">POST</span>/bookings/:id/reschedule</td><td>User</td><td>Atomic move to new slot</td></tr>
+    <tr><td><span class="method get">GET</span>/bookings</td><td>User</td><td>Paginated booking history</td></tr>
+    <tr><td><span class="method get">GET</span>/bookings/schedule/:id</td><td>Interviewer</td><td>Upcoming confirmed sessions</td></tr>
+    <tr><td><span class="method get">GET</span>/bookings/:id</td><td>User</td><td>Single booking detail (Redis cached 5 min)</td></tr>
+  </table>
+
+  <h2>Test Suite (23/23 passing)</h2>
+  <ul class="tests">
+    <li>acquires lock and returns lock object</li>
+    <li>second acquire on same resource fails</li>
+    <li>release returns true and allows re-acquire</li>
+    <li>release with wrong token returns false (Lua)</li>
+    <li>isOwner — correct token only</li>
+    <li>setHold / getHold / clearHold round-trip</li>
+    <li>extendLock with correct token</li>
+    <li>extendLock with wrong token → false</li>
+    <li>holdSlot succeeds with booking + order</li>
+    <li>concurrent holdSlot — second rejected</li>
+    <li>holdSlot rejects if slot unavailable</li>
+    <li>holdSlot rejects if slot not found</li>
+    <li>holdSlot rejects on booking clash</li>
+    <li>confirmBooking: expired hold → 400</li>
+    <li>confirmBooking: wrong userId → 403</li>
+    <li>confirmBooking: mismatched bookingId → 400</li>
+    <li>confirmBooking: bad signature → 400</li>
+    <li>releaseHold clears Redis hold</li>
+    <li>releaseHold is no-op when expired</li>
+    <li>releaseHold rejects different user</li>
+    <li>cleanup: cancels stale bookings</li>
+    <li>cleanup: returns 0 when none</li>
+    <li>expirePastSlots calls model method</li>
+  </ul>
+
+  <h2>Redis Key Schema</h2>
+  <table>
+    <tr><th>Key pattern</th><th>TTL</th><th>Purpose</th></tr>
+    <tr><td>interviewready:slot:lock:&lt;slotId&gt;</td><td>600 s</td><td>Distributed lock — SET NX PX; Lua release</td></tr>
+    <tr><td>interviewready:slot:hold:&lt;slotId&gt;</td><td>600 s</td><td>Hold metadata (userId, bookingId, lockToken, expiresAt)</td></tr>
+    <tr><td>interviewready:availability:&lt;id&gt;:&lt;from&gt;:&lt;to&gt;</td><td>60 s</td><td>Slot list cache (invalidated on any mutation)</td></tr>
+    <tr><td>interviewready:booking:&lt;bookingId&gt;</td><td>300 s</td><td>Booking detail cache (invalidated on status change)</td></tr>
+  </table>
+
+  <footer>Made with IBM Bob</footer>
+</div>
+</body>
+</html>
