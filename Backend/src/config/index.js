@@ -124,7 +124,17 @@ const config = {
 
   // CORS Configuration
   cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    // Accept requests from Vite dev server (5173) AND the configured FRONTEND_URL.
+    // In production, set FRONTEND_URL to the deployed frontend origin.
+    origin: (origin, callback) => {
+      const allowed = [
+        process.env.FRONTEND_URL || 'http://localhost:5173',
+        'http://localhost:3000',  // CRA / legacy
+        'http://localhost:5173',  // Vite default
+      ].filter(Boolean);
+      if (!origin || allowed.includes(origin)) return callback(null, true);
+      callback(new Error(`CORS: origin ${origin} not allowed`));
+    },
     credentials: true,
     optionsSuccessStatus: 200,
   },
@@ -145,7 +155,11 @@ const config = {
   // Socket.IO Configuration
   socketIO: {
     cors: {
-      origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+      origin: [
+        process.env.FRONTEND_URL || 'http://localhost:5173',
+        'http://localhost:3000',
+        'http://localhost:5173',
+      ].filter(Boolean),
       credentials: true,
     },
     pingTimeout: 60000,
