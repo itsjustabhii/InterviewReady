@@ -1,27 +1,50 @@
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Star, Users, Globe, ArrowLeft, Calendar, Check, BookOpen } from 'lucide-react';
-import { mockInterviewers } from '../../data/mockData';
 import Badge from '../../components/ui/Badge';
 import StarRating from '../../components/ui/StarRating';
 import Button from '../../components/ui/Button';
 import GlassCard from '../../components/ui/GlassCard';
+import { Spinner } from '../../components/ui/Loader';
 import { useAppDispatch } from '../../store/hooks';
 import { selectInterviewer } from '../../store/slices/bookingSlice';
+import { useInterviewer, useInterviewerReviews } from '../../hooks/useApi';
+import { formatDistanceToNow } from '../../lib/dateUtils';
+import type { Interviewer, Review } from '../../types';
 
-const mockReviews = [
-  { id: 'r1', name: 'Tom N.', avatar: 'https://i.pravatar.cc/40?img=51', rating: 5, comment: 'Absolutely top-notch session. Precise feedback that changed how I approach system design problems.', date: 'July 2025' },
-  { id: 'r2', name: 'Alice P.', avatar: 'https://i.pravatar.cc/40?img=44', rating: 5, comment: 'Went beyond the hour to make sure I understood every concept. Highly recommend.', date: 'June 2025' },
-  { id: 'r3', name: 'Sam K.', avatar: 'https://i.pravatar.cc/40?img=11', rating: 4, comment: 'Great session, lots of practical insights. Will definitely book again.', date: 'June 2025' },
-];
+function mapInterviewer(iv: any): Interviewer & { name: string; avatar: string; title: string; price: number } {
+  const user = iv.user ?? {};
+  return {
+    ...iv,
+    id: iv._id,
+    name: user.fullName ?? (`${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() || iv.name),
+    avatar: user.avatar ?? iv.avatar ?? '',
+    title: iv.position ?? iv.title ?? '',
+    price: iv.hourlyRate ?? iv.price ?? 0,
+    reviews: iv.rating?.count ?? iv.reviews ?? 0,
+    sessions: iv.completedInterviews ?? iv.sessions ?? 0,
+    available: iv.status === 'active',
+    rating: typeof iv.rating === 'object' ? iv.rating.average : iv.rating ?? 0,
+  };
+}
 
 export default function InterviewerDetailsPage() {
-  const { id } = useParams();
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
-  const interviewer = mockInterviewers.find((iv) => iv.id === id);
 
-  if (!interviewer) {
+  const { data: rawInterviewer, isLoading, isError } = useInterviewer(id ?? '');
+  const { data: reviewsData, isLoading: reviewsLoading } = useInterviewerReviews(id ?? '', { limit: 10 });
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Spinner className="w-10 h-10" />
+      </div>
+    );
+  }
+
+  if (isError || !rawInterviewer) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4">
         <p className="text-4xl">🤔</p>
@@ -31,10 +54,19 @@ export default function InterviewerDetailsPage() {
     );
   }
 
+  // useInterviewer returns data.data which the backend shapes as { interviewer: {...} } or directly the object
+  const raw = (rawInterviewer as any)?.interviewer ?? rawInterviewer;
+  const interviewer = mapInterviewer(raw);
+
+  // Reviews: reviewsData is { data: Review[], pagination }
+  const reviews: Review[] = (reviewsData as any)?.data ?? [];
+
   const handleBook = () => {
-    dispatch(selectInterviewer(interviewer.id));
+    dispatch(selectInterviewer(interviewer._id));
     navigate('/booking');
   };
+
+  const ratingValue = typeof raw.rating === 'object' ? raw.rating.average : raw.rating ?? 0;
 
   return (
     <main className="pt-24 pb-20">
@@ -55,7 +87,7 @@ export default function InterviewerDetailsPage() {
               <div className="flex flex-col sm:flex-row gap-6">
                 <div className="relative">
                   <img
-                    src={interviewer.avatar}
+                    src={interviewer.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(interviewer.name)}&size=96`}
                     alt={interviewer.name}
                     className="w-24 h-24 rounded-2xl object-cover"
                   />
@@ -70,7 +102,9 @@ export default function InterviewerDetailsPage() {
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <h1 className="text-2xl font-bold">{interviewer.name}</h1>
-                      <p className="text-[var(--text-secondary)]">{interviewer.title} · {interviewer.company}</p>
+                      <p className="text-[var(--text-secondary)]">
+                        {interviewer.title}{interviewer.company ? ` · ${interviewer.company}` : ''}
+                      </p>
                     </div>
                     <div className="text-right">
                       <p className="text-2xl font-bold">${interviewer.price}</p>
@@ -80,24 +114,24 @@ export default function InterviewerDetailsPage() {
 
                   <div className="flex flex-wrap gap-4 mt-4 text-sm text-[var(--text-secondary)]">
                     <span className="flex items-center gap-1.5">
-                      <StarRating rating={interviewer.rating} />
-                      <strong className="text-[var(--text-primary)]">
-                        {typeof interviewer.rating === 'object' ? interviewer.rating.average.toFixed(1) : interviewer.rating}
-                      </strong>
+                      <StarRating rating={ratingValue} />
+                      <strong className="text-[var(--text-primary)]">{ratingValue.toFixed(1)}</strong>
                       <span>({interviewer.reviews} reviews)</span>
                     </span>
                     <span className="flex items-center gap-1.5">
                       <Users size={14} />
                       {interviewer.sessions} sessions
                     </span>
-                    <span className="flex items-center gap-1.5">
-                      <Globe size={14} />
-                      {interviewer.languages.join(', ')}
-                    </span>
+                    {interviewer.languages?.length > 0 && (
+                      <span className="flex items-center gap-1.5">
+                        <Globe size={14} />
+                        {interviewer.languages.join(', ')}
+                      </span>
+                    )}
                   </div>
 
                   <div className="flex flex-wrap gap-1.5 mt-4">
-                    {interviewer.expertise.map((tag) => (
+                    {(interviewer.expertise ?? []).map((tag) => (
                       <Badge key={tag} label={tag} />
                     ))}
                   </div>
@@ -111,7 +145,9 @@ export default function InterviewerDetailsPage() {
                 <BookOpen size={18} className="text-[var(--accent)]" />
                 About
               </h2>
-              <p className="text-[var(--text-secondary)] leading-relaxed">{interviewer.bio}</p>
+              <p className="text-[var(--text-secondary)] leading-relaxed">
+                {raw.user?.bio ?? raw.bio ?? 'No bio provided.'}
+              </p>
             </GlassCard>
 
             {/* Reviews */}
@@ -119,23 +155,48 @@ export default function InterviewerDetailsPage() {
               <h2 className="font-semibold text-lg mb-5 flex items-center gap-2">
                 <Star size={18} className="text-[var(--accent)]" />
                 Reviews
-                <span className="text-sm text-[var(--text-secondary)] font-normal">({mockReviews.length})</span>
+                <span className="text-sm text-[var(--text-secondary)] font-normal">
+                  ({reviews.length})
+                </span>
               </h2>
-              <div className="space-y-5">
-                {mockReviews.map((r) => (
-                  <div key={r.id} className="flex gap-4 pb-5 border-b border-[var(--border)] last:border-0 last:pb-0">
-                    <img src={r.avatar} alt={r.name} className="w-9 h-9 rounded-full flex-shrink-0" />
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between mb-1">
-                        <p className="text-sm font-semibold">{r.name}</p>
-                        <p className="text-xs text-[var(--text-secondary)]">{r.date}</p>
+              {reviewsLoading ? (
+                <div className="flex justify-center py-6"><Spinner /></div>
+              ) : reviews.length === 0 ? (
+                <p className="text-sm text-[var(--text-secondary)] text-center py-6">
+                  No reviews yet. Be the first!
+                </p>
+              ) : (
+                <div className="space-y-5">
+                  {reviews.map((r) => {
+                    const reviewer = typeof r.user === 'object' ? r.user : null;
+                    const name = reviewer
+                      ? `${reviewer.firstName} ${reviewer.lastName}`
+                      : (r as any).userName ?? 'Anonymous';
+                    const avatar = reviewer?.avatar ?? (r as any).avatar ?? '';
+                    return (
+                      <div key={r._id} className="flex gap-4 pb-5 border-b border-[var(--border)] last:border-0 last:pb-0">
+                        <img
+                          src={avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&size=36`}
+                          alt={name}
+                          className="w-9 h-9 rounded-full flex-shrink-0"
+                        />
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between mb-1">
+                            <p className="text-sm font-semibold">{name}</p>
+                            <p className="text-xs text-[var(--text-secondary)]">
+                              {formatDistanceToNow(r.createdAt)}
+                            </p>
+                          </div>
+                          <StarRating rating={r.rating} />
+                          <p className="text-sm text-[var(--text-secondary)] mt-2 leading-relaxed">
+                            {r.comment}
+                          </p>
+                        </div>
                       </div>
-                      <StarRating rating={r.rating} />
-                      <p className="text-sm text-[var(--text-secondary)] mt-2 leading-relaxed">{r.comment}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
             </GlassCard>
           </div>
 

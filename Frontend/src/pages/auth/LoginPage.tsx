@@ -7,8 +7,10 @@ import { motion } from 'framer-motion';
 import { Eye, EyeOff, Zap, ArrowRight } from 'lucide-react';
 import { useAppDispatch } from '../../store/hooks';
 import { setCredentials } from '../../store/slices/authSlice';
+import { useLogin } from '../../hooks/useApi';
 import toast from 'react-hot-toast';
 import Button from '../../components/ui/Button';
+import type { User } from '../../store/slices/authSlice';
 
 const schema = z.object({
   email: z.string().email('Enter a valid email'),
@@ -20,6 +22,7 @@ type FormValues = z.infer<typeof schema>;
 export default function LoginPage() {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
+  const loginMutation = useLogin();
   const [showPass, setShowPass] = useState(false);
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormValues>({
@@ -27,27 +30,36 @@ export default function LoginPage() {
   });
 
   const onSubmit = async (data: FormValues) => {
-    try {
-      // Simulate API call
-      await new Promise((r) => setTimeout(r, 900));
-      const isAdmin = data.email === 'admin@interviewready.com';
-      dispatch(setCredentials({
-        token: 'demo-token-123',
-        user: {
-          id: '1',
-          name: isAdmin ? 'Admin User' : 'Alex Chen',
-          email: data.email,
-          avatar: 'https://i.pravatar.cc/150?img=33',
-          role: isAdmin ? 'admin' : 'user',
-          plan: 'pro',
-        },
-      }));
-      toast.success('Welcome back!');
-      navigate('/');
-    } catch {
-      toast.error('Invalid credentials. Try again.');
-    }
+    loginMutation.mutate(data, {
+      onSuccess: (res) => {
+        const backendUser = res.user;
+        const user: User = {
+          id: backendUser._id,
+          _id: backendUser._id,
+          firstName: backendUser.firstName,
+          lastName: backendUser.lastName,
+          fullName: backendUser.fullName,
+          name: backendUser.fullName,
+          email: backendUser.email,
+          avatar: backendUser.avatar ?? null,
+          role: backendUser.role,
+        };
+        dispatch(setCredentials({
+          user,
+          token: res.accessToken,
+          refreshToken: res.refreshToken,
+        }));
+        toast.success('Welcome back!');
+        navigate('/');
+      },
+      onError: (err: any) => {
+        const msg = err?.response?.data?.message ?? 'Invalid credentials. Try again.';
+        toast.error(msg);
+      },
+    });
   };
+
+  const loading = isSubmitting || loginMutation.isPending;
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 pt-16">
@@ -112,7 +124,7 @@ export default function LoginPage() {
               {errors.password && <p className="text-xs text-red-500 mt-1">{errors.password.message}</p>}
             </div>
 
-            <Button type="submit" loading={isSubmitting} className="w-full mt-2" size="lg">
+            <Button type="submit" loading={loading} className="w-full mt-2" size="lg">
               Sign in <ArrowRight size={16} />
             </Button>
           </form>
@@ -123,11 +135,6 @@ export default function LoginPage() {
               Create one free
             </Link>
           </p>
-
-          {/* Demo hint */}
-          <div className="mt-4 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border)] p-3 text-xs text-[var(--text-secondary)] text-center">
-            Demo: any email/password works · Admin: <strong>admin@interviewready.com</strong>
-          </div>
         </div>
       </motion.div>
     </div>

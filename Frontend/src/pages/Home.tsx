@@ -1,9 +1,25 @@
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Star, Users, Award, CheckCircle, Zap, TrendingUp, Shield } from 'lucide-react';
-import { mockInterviewers } from '../data/mockData';
+import { useInterviewers } from '../hooks/useApi';
 import InterviewerCard from '../components/ui/InterviewerCard';
 import GlassCard from '../components/ui/GlassCard';
+import type { Interviewer } from '../types';
+
+function mapInterviewer(iv: Interviewer): Interviewer {
+  const user = typeof iv.user === 'object' ? iv.user : null;
+  return {
+    ...iv,
+    id: iv._id,
+    name: user ? `${user.firstName} ${user.lastName}` : (iv as any).name ?? 'Interviewer',
+    avatar: user?.avatar ?? (iv as any).avatar ?? '',
+    title: iv.position,
+    price: iv.hourlyRate,
+    reviews: iv.rating.count,
+    sessions: iv.completedInterviews,
+    available: iv.status === 'active',
+  };
+}
 
 const stats = [
   { value: '12,000+', label: 'Interviews Conducted' },
@@ -75,6 +91,10 @@ const fadeUp = {
 };
 
 export default function HomePage() {
+  // Load top 3 rated interviewers from the real API
+  const { data } = useInterviewers({ limit: 3, sortBy: 'rating' });
+  const featuredInterviewers = (data?.data ?? []).map(mapInterviewer);
+
   return (
     <main className="overflow-hidden">
       {/* ── Hero ── */}
@@ -217,8 +237,8 @@ export default function HomePage() {
             </Link>
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {mockInterviewers.slice(0, 3).map((iv, i) => (
-              <InterviewerCard key={iv.id} interviewer={iv} index={i} />
+            {featuredInterviewers.map((iv, i) => (
+              <InterviewerCard key={iv._id} interviewer={iv} index={i} />
             ))}
           </div>
         </div>

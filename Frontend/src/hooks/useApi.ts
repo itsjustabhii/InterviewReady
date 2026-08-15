@@ -22,7 +22,14 @@ export const useLogin = () =>
   useMutation<AuthResponse, Error, LoginCredentials>({
     mutationFn: async (creds) => {
       const { data } = await api.post('/v1/auth/login', creds);
-      return data.data;
+      // Backend: { status, message, data: { user, tokens: { accessToken, refreshToken } } }
+      const payload = data.data;
+      return {
+        user: payload.user,
+        tokens: payload.tokens,
+        accessToken: payload.tokens.accessToken,
+        refreshToken: payload.tokens.refreshToken,
+      };
     },
   });
 
@@ -30,7 +37,13 @@ export const useSignup = () =>
   useMutation<AuthResponse, Error, SignupCredentials>({
     mutationFn: async (creds) => {
       const { data } = await api.post('/v1/auth/register', creds);
-      return data.data;
+      const payload = data.data;
+      return {
+        user: payload.user,
+        tokens: payload.tokens,
+        accessToken: payload.tokens.accessToken,
+        refreshToken: payload.tokens.refreshToken,
+      };
     },
   });
 
@@ -149,8 +162,10 @@ export const useMyBookings = () =>
   useQuery({
     queryKey: ['bookings', 'my'],
     queryFn: async () => {
-      const { data } = await api.get('/v1/bookings/my');
-      return data.data as Booking[];
+      // Backend: GET /v1/bookings returns paginated list for the authenticated user
+      const { data } = await api.get('/v1/bookings');
+      // data.data is the array of bookings (paginated response puts items directly)
+      return (Array.isArray(data.data) ? data.data : data.data) as Booking[];
     },
   });
 
@@ -168,10 +183,14 @@ export const useAvailableSlots = (interviewerId: string, date: string) =>
   useQuery({
     queryKey: ['slots', interviewerId, date],
     queryFn: async () => {
-      const { data } = await api.get(`/v1/availability/${interviewerId}/slots`, {
-        params: { date },
+      // Backend: GET /v1/availability/:interviewerId?from=date&to=date
+      // Returns { data: { slots: [...], count: N } }
+      const { data } = await api.get(`/v1/availability/${interviewerId}`, {
+        params: { from: date, to: date },
       });
-      return data.data as import('../types').TimeSlot[];
+      // slots array lives at data.data.slots
+      const payload = data.data;
+      return (payload?.slots ?? payload ?? []) as import('../types').TimeSlot[];
     },
     enabled: !!interviewerId && !!date,
     staleTime: 1000 * 60 * 2,

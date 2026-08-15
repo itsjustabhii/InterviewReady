@@ -396,6 +396,13 @@ export interface SignupCredentials {
 
 export interface AuthResponse {
   user: AuthUser;
+  /**
+   * Backend wraps tokens in a `tokens` object: { accessToken, refreshToken }.
+   * The useLogin / useSignup hooks return `data.data` directly, so `tokens` is
+   * a nested object here, not a top-level field.
+   */
+  tokens: { accessToken: string; refreshToken: string };
+  // Convenience aliases flattened by the API hooks
   accessToken: string;
   refreshToken?: string;
 }

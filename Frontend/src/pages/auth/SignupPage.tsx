@@ -7,11 +7,14 @@ import { motion } from 'framer-motion';
 import { Eye, EyeOff, Zap, ArrowRight, CheckCircle } from 'lucide-react';
 import { useAppDispatch } from '../../store/hooks';
 import { setCredentials } from '../../store/slices/authSlice';
+import { useSignup } from '../../hooks/useApi';
 import toast from 'react-hot-toast';
 import Button from '../../components/ui/Button';
+import type { User } from '../../store/slices/authSlice';
 
 const schema = z.object({
-  name: z.string().min(2, 'Name must be at least 2 characters'),
+  firstName: z.string().min(2, 'First name must be at least 2 characters'),
+  lastName: z.string().min(2, 'Last name must be at least 2 characters'),
   email: z.string().email('Enter a valid email'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
   confirm: z.string(),
@@ -27,6 +30,7 @@ const perks = ['14-day free trial', 'No credit card required', 'Cancel anytime']
 export default function SignupPage() {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
+  const signupMutation = useSignup();
   const [showPass, setShowPass] = useState(false);
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormValues>({
@@ -34,21 +38,44 @@ export default function SignupPage() {
   });
 
   const onSubmit = async (data: FormValues) => {
-    await new Promise((r) => setTimeout(r, 900));
-    dispatch(setCredentials({
-      token: 'demo-token-new',
-      user: {
-        id: Date.now().toString(),
-        name: data.name,
+    signupMutation.mutate(
+      {
+        firstName: data.firstName,
+        lastName: data.lastName,
         email: data.email,
-        avatar: `https://i.pravatar.cc/150?u=${data.email}`,
-        role: 'user',
-        plan: 'free',
+        password: data.password,
       },
-    }));
-    toast.success('Account created! Welcome aboard 🎉');
-    navigate('/');
+      {
+        onSuccess: (res) => {
+          const backendUser = res.user;
+          const user: User = {
+            id: backendUser._id,
+            _id: backendUser._id,
+            firstName: backendUser.firstName,
+            lastName: backendUser.lastName,
+            fullName: backendUser.fullName,
+            name: backendUser.fullName,
+            email: backendUser.email,
+            avatar: backendUser.avatar ?? null,
+            role: backendUser.role,
+          };
+          dispatch(setCredentials({
+            user,
+            token: res.accessToken,
+            refreshToken: res.refreshToken,
+          }));
+          toast.success('Account created! Welcome aboard 🎉');
+          navigate('/');
+        },
+        onError: (err: any) => {
+          const msg = err?.response?.data?.message ?? 'Registration failed. Please try again.';
+          toast.error(msg);
+        },
+      },
+    );
   };
+
+  const loading = isSubmitting || signupMutation.isPending;
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 pt-16 pb-10">
@@ -83,10 +110,17 @@ export default function SignupPage() {
           </div>
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div>
-              <label className="text-sm font-medium mb-1.5 block">Full name</label>
-              <input {...register('name')} type="text" placeholder="Alex Chen" className="input-field" autoComplete="name" />
-              {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name.message}</p>}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">First name</label>
+                <input {...register('firstName')} type="text" placeholder="Alex" className="input-field" autoComplete="given-name" />
+                {errors.firstName && <p className="text-xs text-red-500 mt-1">{errors.firstName.message}</p>}
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">Last name</label>
+                <input {...register('lastName')} type="text" placeholder="Chen" className="input-field" autoComplete="family-name" />
+                {errors.lastName && <p className="text-xs text-red-500 mt-1">{errors.lastName.message}</p>}
+              </div>
             </div>
 
             <div>
@@ -118,7 +152,7 @@ export default function SignupPage() {
               {errors.confirm && <p className="text-xs text-red-500 mt-1">{errors.confirm.message}</p>}
             </div>
 
-            <Button type="submit" loading={isSubmitting} className="w-full mt-2" size="lg">
+            <Button type="submit" loading={loading} className="w-full mt-2" size="lg">
               Create account <ArrowRight size={16} />
             </Button>
           </form>

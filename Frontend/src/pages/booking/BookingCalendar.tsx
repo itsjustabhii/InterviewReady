@@ -1,25 +1,16 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, Clock, Calendar, ArrowRight } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import { selectDate, selectSlot } from '../../store/slices/bookingSlice';
-import { mockInterviewers } from '../../data/mockData';
+import { useInterviewer, useAvailableSlots } from '../../hooks/useApi';
+import { Spinner } from '../../components/ui/Loader';
 import clsx from 'clsx';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'];
-
-const TIME_SLOTS = [
-  '9:00 AM', '9:30 AM', '10:00 AM', '10:30 AM',
-  '11:00 AM', '11:30 AM', '1:00 PM', '1:30 PM',
-  '2:00 PM', '2:30 PM', '3:00 PM', '3:30 PM',
-  '4:00 PM', '5:00 PM', '6:00 PM', '7:00 PM',
-];
-
-// Mock some unavailable slots
-const UNAVAILABLE = new Set(['9:30 AM', '11:00 AM', '2:00 PM', '6:00 PM']);
 
 function getDaysInMonth(year: number, month: number) {
   return new Date(year, month + 1, 0).getDate();
@@ -29,13 +20,34 @@ function getFirstDayOfMonth(year: number, month: number) {
   return new Date(year, month, 1).getDay();
 }
 
+function padded(n: number) {
+  return String(n).padStart(2, '0');
+}
+
 export default function BookingCalendarPage() {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const { selectedInterviewerId, selectedDate, selectedSlot } = useAppSelector((s) => s.booking);
   const today = new Date();
   const [viewDate, setViewDate] = useState({ year: today.getFullYear(), month: today.getMonth() });
-  const interviewer = mockInterviewers.find((iv) => iv.id === selectedInterviewerId) || mockInterviewers[0];
+
+  // ── Fetch interviewer from real API ─────────────────────────────────────────
+  const { data: interviewerData } = useInterviewer(selectedInterviewerId ?? '');
+  // interviewerData is the unwrapped interviewer object
+  const interviewer = interviewerData as any;
+
+  // ── Fetch available slots for selected date ──────────────────────────────────
+  const { data: slotsData, isLoading: slotsLoading } = useAvailableSlots(
+    selectedInterviewerId ?? '',
+    selectedDate ?? '',
+  );
+  // slotsData is the unwrapped { slots, count } or array; normalize
+  const slots: { _id: string; startTime: string; endTime: string; isAvailable: boolean; status: string }[] =
+    useMemo(() => {
+      if (!slotsData) return [];
+      // useAvailableSlots returns the raw slots array from data.data.slots
+      return (slotsData as any) ?? [];
+    }, [slotsData]);
 
   const daysInMonth = getDaysInMonth(viewDate.year, viewDate.month);
   const firstDay = getFirstDayOfMonth(viewDate.year, viewDate.month);
@@ -56,14 +68,15 @@ export default function BookingCalendarPage() {
 
   const handleDateSelect = (day: number) => {
     const date = new Date(viewDate.year, viewDate.month, day);
-    if (date < new Date(today.setHours(0, 0, 0, 0))) return;
-    const iso = `${viewDate.year}-${String(viewDate.month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const todayMidnight = new Date();
+    todayMidnight.setHours(0, 0, 0, 0);
+    if (date < todayMidnight) return;
+    const iso = `${viewDate.year}-${padded(viewDate.month + 1)}-${padded(day)}`;
     dispatch(selectDate(iso));
   };
 
-  const handleSlotSelect = (slot: string) => {
-    if (UNAVAILABLE.has(slot)) return;
-    dispatch(selectSlot(slot));
+  const handleSlotSelect = (slotId: string) => {
+    dispatch(selectSlot(slotId));
   };
 
   const handleContinue = () => navigate('/checkout');
@@ -75,14 +88,39 @@ export default function BookingCalendarPage() {
     return date < todayMidnight;
   };
 
+  // Format a slot's startTime (HH:mm or full ISO) to a display string
+  const formatSlotTime = (startTime: string) => {
+    if (!startTime) return '';
+    // If it looks like HH:mm
+    if (/^\d{2}:\d{2}$/.test(startTime)) {
+      const [h, m] = startTime.split(':').map(Number);
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      const h12 = h % 12 || 12;
+      return `${h12}:${padded(m)} ${ampm}`;
+    }
+    // If it's a full ISO or datetime string
+    return new Date(startTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  };
+
+  const interviewerName = interviewer
+    ? (interviewer.user
+        ? `${interviewer.user.firstName} ${interviewer.user.lastName}`
+        : interviewer.name ?? 'Interviewer')
+    : (selectedInterviewerId ? 'Loading…' : 'Interviewer');
+
+  const interviewerTitle = interviewer
+    ? `${interviewer.position ?? interviewer.title ?? ''} at ${interviewer.company ?? ''}`
+    : '';
+
   return (
     <main className="pt-24 pb-20">
       <div className="container-xl max-w-5xl">
         <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }}>
           <p className="text-label mb-2">Book a session</p>
-          <h1 className="heading-section mb-2">Choose a date & time</h1>
+          <h1 className="heading-section mb-2">Choose a date &amp; time</h1>
           <p className="text-[var(--text-secondary)] mb-8">
-            Scheduling with <strong className="text-[var(--text-primary)]">{interviewer.name}</strong> — {interviewer.title} at {interviewer.company}
+            Scheduling with <strong className="text-[var(--text-primary)]">{interviewerName}</strong>
+            {interviewerTitle ? ` — ${interviewerTitle}` : ''}
           </p>
         </motion.div>
 
@@ -119,7 +157,7 @@ export default function BookingCalendarPage() {
                 ))}
                 {Array.from({ length: daysInMonth }).map((_, i) => {
                   const day = i + 1;
-                  const iso = `${viewDate.year}-${String(viewDate.month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                  const iso = `${viewDate.year}-${padded(viewDate.month + 1)}-${padded(day)}`;
                   const isSelected = iso === selectedDate;
                   const past = isPast(day);
                   const isToday =
@@ -160,23 +198,28 @@ export default function BookingCalendarPage() {
               <h3 className="font-semibold mb-4 flex items-center gap-2">
                 <Clock size={16} className="text-[var(--accent)]" />
                 Available Times
-                <span className="text-xs text-[var(--text-secondary)] font-normal">(PDT)</span>
               </h3>
 
               {!selectedDate ? (
                 <p className="text-sm text-[var(--text-secondary)] text-center py-8">
                   👆 Select a date first
                 </p>
+              ) : slotsLoading ? (
+                <div className="flex justify-center py-12"><Spinner /></div>
+              ) : slots.length === 0 ? (
+                <p className="text-sm text-[var(--text-secondary)] text-center py-8">
+                  No available slots on this day. Try another date.
+                </p>
               ) : (
                 <div className="grid grid-cols-2 gap-2">
-                  {TIME_SLOTS.map((slot) => {
-                    const unavailable = UNAVAILABLE.has(slot);
-                    const selected = slot === selectedSlot;
+                  {slots.map((slot) => {
+                    const unavailable = !slot.isAvailable || slot.status !== 'available';
+                    const selected = slot._id === selectedSlot;
                     return (
                       <button
-                        key={slot}
+                        key={slot._id}
                         disabled={unavailable}
-                        onClick={() => handleSlotSelect(slot)}
+                        onClick={() => handleSlotSelect(slot._id)}
                         className={clsx(
                           'py-2.5 rounded-xl text-sm font-medium border transition-all',
                           unavailable && 'opacity-30 cursor-not-allowed border-[var(--border)] text-[var(--text-secondary)] line-through',
@@ -184,7 +227,7 @@ export default function BookingCalendarPage() {
                           selected && 'bg-[var(--accent)] border-[var(--accent)] text-white'
                         )}
                       >
-                        {slot}
+                        {formatSlotTime(slot.startTime)}
                       </button>
                     );
                   })}
@@ -202,9 +245,12 @@ export default function BookingCalendarPage() {
             className="mt-6 glass-card flex flex-col sm:flex-row items-center justify-between gap-4"
           >
             <div>
-              <p className="font-semibold">{interviewer.name} · {selectedSlot}</p>
+              <p className="font-semibold">
+                {interviewerName} · {formatSlotTime(slots.find((s) => s._id === selectedSlot)?.startTime ?? '')}
+              </p>
               <p className="text-sm text-[var(--text-secondary)]">
-                {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} · 60 min · ${interviewer.price}
+                {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} · 60 min
+                {interviewer ? ` · $${interviewer.hourlyRate ?? interviewer.price ?? ''}` : ''}
               </p>
             </div>
             <button onClick={handleContinue} className="btn-primary gap-2 whitespace-nowrap">
